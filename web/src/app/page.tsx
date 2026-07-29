@@ -202,9 +202,31 @@ export default function MarketingHome() {
                 {t.downloadAndroid}
               </button>
             </div>
-            <p className="mt-5 text-xs leading-relaxed text-muted">
-              {t.downloadHint}
-            </p>
+
+            <div className="mt-8 grid gap-4 text-left sm:grid-cols-2">
+              <div className="rounded-2xl border border-line/70 bg-background/70 p-4">
+                <p className="text-sm font-bold">{t.installIosTitle}</p>
+                <ol className="mt-2 space-y-1.5 text-[13px] leading-snug text-muted">
+                  {t.installIosSteps.map((step, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span className="font-semibold text-foreground">{i + 1}.</span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+              <div className="rounded-2xl border border-line/70 bg-background/70 p-4">
+                <p className="text-sm font-bold">{t.installAndroidTitle}</p>
+                <ol className="mt-2 space-y-1.5 text-[13px] leading-snug text-muted">
+                  {t.installAndroidSteps.map((step, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span className="font-semibold text-foreground">{i + 1}.</span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
           </div>
         </div>
       </section>

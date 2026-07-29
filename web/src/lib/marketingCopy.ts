@@ -40,8 +40,19 @@ export const marketingCopy = {
     downloadWeb: "打开免下载版",
     downloadIos: "App Store（即将推出）",
     downloadAndroid: "Google Play（即将推出）",
-    downloadHint:
-      "iPhone：Safari 打开后点「共享」→「添加到主屏幕」，即可像 App 一样使用。",
+    downloadHint: "",
+    installIosTitle: "iPhone（Safari）",
+    installIosSteps: [
+      "用 Safari 打开 talklov.com",
+      "点底栏「分享」按钮（有的机型显示为「共享」）",
+      "上滑找到「添加到主屏幕」→ 点「添加」",
+    ],
+    installAndroidTitle: "安卓手机",
+    installAndroidSteps: [
+      "用 Chrome 打开 talklov.com",
+      "点右上角「⋮」菜单",
+      "选择「添加到主屏幕」或「安装应用」",
+    ],
     faqTitle: "常见问题",
     faqMore: "查看全部问题",
     footerTagline: "你的中美语言搭子与交友平台",
@@ -87,8 +98,19 @@ export const marketingCopy = {
     downloadWeb: "Open no-download version",
     downloadIos: "App Store (coming soon)",
     downloadAndroid: "Google Play (coming soon)",
-    downloadHint:
-      "iPhone: in Safari, tap Share → Add to Home Screen for an app-like experience.",
+    downloadHint: "",
+    installIosTitle: "iPhone (Safari)",
+    installIosSteps: [
+      "Open talklov.com in Safari",
+      "Tap Share in the toolbar (square with ↑)",
+      "Tap “Add to Home Screen” → “Add”",
+    ],
+    installAndroidTitle: "Android",
+    installAndroidSteps: [
+      "Open talklov.com in Chrome",
+      "Tap the ⋮ menu (top-right)",
+      "Choose “Add to Home screen” or “Install app”",
+    ],
     faqTitle: "FAQ",
     faqMore: "See all FAQs",
     footerTagline: "Your US–China language partner & social platform",

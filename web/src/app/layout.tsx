@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppProvider } from "@/lib/store";
 import Modals from "@/components/Modals";
+import InstallGuide from "@/components/InstallGuide";
 
 export const metadata: Metadata = {
   title: "TalkLov · 你的中美语言搭子与交友平台",
@@ -40,6 +41,7 @@ export default function RootLayout({
         <AppProvider>
           {children}
           <Modals />
+          <InstallGuide />
         </AppProvider>
       </body>
     </html>
