@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/lib/store";
 import { useProfile } from "@/lib/useProfiles";
 import { saveOpener } from "@/lib/openers";
@@ -13,6 +13,15 @@ import {
   isRateLimited,
   openersLeftToday,
 } from "@/lib/quota";
+import {
+  AI_AUTO_ACCEPT_SECONDS,
+  isAiPersona,
+  markAiWelcomeReply,
+} from "@/lib/aiPersonas";
+import {
+  playMessageSound,
+  showLocalMessageNotification,
+} from "@/lib/notify";
 import ProfilePhoto from "@/components/ProfilePhoto";
 import VoicePlayButton from "@/components/VoicePlayButton";
 import { formatChineseVariants, shortLevel } from "@/lib/profile";
@@ -37,12 +46,15 @@ export default function ProfileDetail() {
     clearPendingHello,
     configured,
     userId,
+    notifyPrefs,
   } = useApp();
   const [hello, setHello] = useState<HelloState>("idle");
   const [opener, setOpener] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string[] | null>(null);
   const [dbOpenerCount, setDbOpenerCount] = useState<number | null>(null);
+  const [waitLeft, setWaitLeft] = useState<number | null>(null);
+  const sentOpenerRef = useRef("");
 
   const { profile, loading, isMe } = useProfile(params.id);
 
@@ -64,6 +76,37 @@ export default function ProfileDetail() {
         .catch(() => setDbOpenerCount(0));
     }
   }, [configured, userId, rateLimited]);
+
+  // Demo AI partners (美琪 / Jack): auto-accept after ~10s + notify + welcome reply flag
+  useEffect(() => {
+    if (hello !== "queued" || !profile || !isAiPersona(profile.id)) return;
+
+    setWaitLeft(AI_AUTO_ACCEPT_SECONDS);
+    const tick = window.setInterval(() => {
+      setWaitLeft((s) => (s == null || s <= 1 ? 0 : s - 1));
+    }, 1000);
+
+    const acceptTimer = window.setTimeout(() => {
+      setHello("accepted");
+      setWaitLeft(null);
+      markAiWelcomeReply(profile.id, sentOpenerRef.current);
+      playMessageSound(notifyPrefs.sound);
+      const body =
+        profile.id === "mei"
+          ? "嗨！我看到你的打招呼啦，很高兴认识你～"
+          : "Hey! Just accepted your hello — nice to meet you!";
+      showLocalMessageNotification(
+        `${profile.name} 已接受你的打招呼`,
+        body,
+        notifyPrefs.push
+      );
+    }, AI_AUTO_ACCEPT_SECONDS * 1000);
+
+    return () => {
+      window.clearInterval(tick);
+      window.clearTimeout(acceptTimer);
+    };
+  }, [hello, profile, notifyPrefs.sound, notifyPrefs.push]);
 
   if (!profile) {
     return (
@@ -117,7 +160,9 @@ export default function ProfileDetail() {
     const text = opener.trim();
     if (!text) return;
     if (rateLimited && left <= 0) return; // quota guard
-    if (configured && userId && isUuid(profile.id)) {
+    sentOpenerRef.current = text;
+    // AI demo personas always use local opener flow (ids are mei/jack, not UUIDs)
+    if (configured && userId && isUuid(profile.id) && !isAiPersona(profile.id)) {
       sendIcebreaker(profile.id, text).catch(() => {});
       if (rateLimited) setDbOpenerCount((c) => (c ?? 0) + 1);
     } else {
@@ -129,7 +174,8 @@ export default function ProfileDetail() {
   };
 
   const onEnterChat = () => {
-    if (tier !== "verified") {
+    // Demo AI partners skip liveness gate so testers can chat immediately
+    if (tier !== "verified" && !isAiPersona(profile.id)) {
       openVerify(`和 ${profile.name} 聊天`);
       return;
     }
@@ -276,26 +322,46 @@ export default function ProfileDetail() {
         {view === "queued" && (
           <div className="animate-fadeUp rounded-2xl border border-accent/40 bg-accent/10 p-4 text-sm">
             <div className="font-semibold text-accent">✓ 开场白已送出</div>
-            <p className="mt-1 text-muted">
-              你的开场白进入了 {profile.name} 的「待接受」。对方接受后，这句话就是你们对话的第一句。
-            </p>
-            <p className="mt-2 flex items-center gap-1 text-xs text-muted">
-              🌍 跨国有时差，Ta 可能在休息——开场白长期有效，不会过期，耐心等回应就好。
-            </p>
-            <button
-              onClick={() => setHello("accepted")}
-              className="mt-3 rounded-lg border border-line px-3 py-1.5 text-xs text-muted"
-            >
-              （演示）模拟对方接受了
-            </button>
+            {isAiPersona(profile.id) ? (
+              <>
+                <p className="mt-1 text-muted">
+                  {profile.name} 是测试搭子，正在查看你的打招呼…
+                  {waitLeft != null && waitLeft > 0
+                    ? ` 大约 ${waitLeft} 秒后会通过。`
+                    : " 马上就好。"}
+                </p>
+                <p className="mt-2 text-xs text-muted">
+                  通过后可进入聊天，对方会自动回复你一句。
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-1 text-muted">
+                  你的开场白进入了 {profile.name} 的「待接受」。对方接受后，这句话就是你们对话的第一句。
+                </p>
+                <p className="mt-2 flex items-center gap-1 text-xs text-muted">
+                  🌍 跨国有时差，Ta 可能在休息——开场白长期有效，不会过期，耐心等回应就好。
+                </p>
+                <button
+                  onClick={() => setHello("accepted")}
+                  className="mt-3 rounded-lg border border-line px-3 py-1.5 text-xs text-muted"
+                >
+                  （演示）模拟对方接受了
+                </button>
+              </>
+            )}
           </div>
         )}
 
         {view === "accepted" && (
           <div className="animate-fadeUp rounded-2xl border border-success/40 bg-success/10 p-4 text-sm">
-            <div className="font-semibold text-success">🎉 你们已连接！</div>
+            <div className="font-semibold text-success">
+              🎉 {profile.name} 已接受你的打招呼！
+            </div>
             <p className="mt-1 text-muted">
-              可以开始聊天了。首次进入会话前需要完成真人认证。
+              {isAiPersona(profile.id)
+                ? "可以开始聊天了——对方会很快回复你。"
+                : "可以开始聊天了。首次进入会话前需要完成真人认证。"}
             </p>
           </div>
         )}
@@ -395,7 +461,9 @@ export default function ProfileDetail() {
                   disabled
                   className="w-full rounded-2xl border border-line py-4 font-semibold text-muted"
                 >
-                  ⏳ 等待 {profile.name} 接受…
+                  {isAiPersona(profile.id) && waitLeft != null && waitLeft > 0
+                    ? `⏳ ${profile.name} 查看中… ${waitLeft}s`
+                    : `⏳ 等待 ${profile.name} 接受…`}
                 </button>
               )}
               {view === "accepted" && (
@@ -403,7 +471,7 @@ export default function ProfileDetail() {
                   onClick={onEnterChat}
                   className="w-full rounded-2xl bg-[#1c1c1f] py-4 text-lg font-semibold text-white shadow-[0_10px_28px_rgba(0,0,0,0.28)] active:bg-[#2a2a2e]"
                 >
-                  {tier === "verified"
+                  {tier === "verified" || isAiPersona(profile.id)
                     ? "进入聊天 →"
                     : "完成认证并开始聊天"}
                 </button>

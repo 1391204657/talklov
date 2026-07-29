@@ -8,6 +8,7 @@ import { useApp } from "@/lib/store";
 import { useProfile } from "@/lib/useProfiles";
 import { takeOpener } from "@/lib/openers";
 import { consumeOpenerDraft } from "@/lib/datingSim";
+import { isAiPersona, takeAiWelcomeReply } from "@/lib/aiPersonas";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   resolveConversation,
@@ -15,8 +16,10 @@ import {
   sendMessage as dbSendMessage,
   subscribeMessages,
 } from "@/lib/db";
-
-const AI_PERSONAS = new Set(["mei", "jack"]);
+import {
+  playMessageSound,
+  showLocalMessageNotification,
+} from "@/lib/notify";
 
 const SCAM_PATTERNS = [
   "转账", "汇款", "打钱", "投资", "比特币", "bitcoin", "wire", "money",
@@ -40,14 +43,17 @@ function speak(text: string) {
 export default function Chat() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { tier, myProfile, openVerify, configured, userId } = useApp();
+  const { tier, myProfile, openVerify, configured, userId, notifyPrefs } =
+    useApp();
   const { profile } = useProfile(params.id);
-  const useBackend = configured && !!userId;
+  const useBackend = configured && !!userId && !isAiPersona(params.id);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const welcomeFired = useRef(false);
 
-  const [messages, setMessages] = useState<ChatMessage[]>(
-    isSupabaseConfigured ? [] : sampleChat
-  );
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (isAiPersona(params.id)) return [];
+    return isSupabaseConfigured ? [] : sampleChat;
+  });
   const [input, setInput] = useState("");
   const [showTrans, setShowTrans] = useState<Record<string, boolean>>({});
   const [autoTranslate, setAutoTranslate] = useState(true);
@@ -71,21 +77,66 @@ export default function Chat() {
   const listRef = useRef<HTMLDivElement | null>(null);
 
   // Seed opener from profile hello, and/or AI practice draft into composer.
+  // AI personas: after opener, auto-request a welcome reply once.
   useEffect(() => {
     if (!profile) return;
     if (!useBackend) {
       const o = takeOpener(profile.id);
-      if (o) {
+      const welcome = isAiPersona(profile.id)
+        ? takeAiWelcomeReply(profile.id)
+        : null;
+      const openerText = o || welcome?.opener || null;
+      if (openerText) {
         setMessages([
           {
             id: `opener-${Date.now()}`,
             fromMe: true,
             kind: "text",
-            text: o,
+            text: openerText,
             translation: autoTranslate ? "（自动翻译预览）" : undefined,
             time: "刚刚",
           },
         ]);
+        if (isAiPersona(profile.id) && !welcomeFired.current) {
+          welcomeFired.current = true;
+          void (async () => {
+            try {
+              const res = await fetch("/api/ai", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "chat_reply",
+                  persona: profile.id,
+                  chatHistory: [
+                    { role: "user", text: openerText },
+                  ],
+                }),
+              });
+              const data = await res.json();
+              if (!data.reply) return;
+              window.setTimeout(() => {
+                setMessages((m) => [
+                  ...m,
+                  {
+                    id: `ai-welcome-${Date.now()}`,
+                    fromMe: false,
+                    kind: "text",
+                    text: data.reply as string,
+                    time: "刚刚",
+                  },
+                ]);
+                playMessageSound(notifyPrefs.sound);
+                showLocalMessageNotification(
+                  profile.name,
+                  data.reply as string,
+                  notifyPrefs.push
+                );
+              }, 700 + Math.random() * 900);
+            } catch {
+              /* ignore */
+            }
+          })();
+        }
       }
     }
     const practice = consumeOpenerDraft();
@@ -136,7 +187,7 @@ export default function Chat() {
     );
   }
 
-  if (tier !== "verified" && !AI_PERSONAS.has(params.id)) {
+  if (tier !== "verified" && !isAiPersona(params.id)) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
         <svg viewBox="0 0 48 48" className="h-12 w-12 text-muted" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M24 4 6 12v12c0 11 18 18 18 18s18-7 18-18V12L24 4Z" /></svg>
@@ -231,7 +282,7 @@ export default function Chat() {
     setPolish(null);
     setIcebreakers(null);
 
-    if (AI_PERSONAS.has(params.id)) {
+    if (isAiPersona(params.id)) {
       requestAiReply(text);
     }
   };

@@ -49,7 +49,7 @@ export const profiles: Profile[] = [
     interests: ["火锅", "猫", "健身", "电影"],
     bio: "成都妹子，英语小白但很努力！想找耐心的语伴，也许还能遇到对的人 :)",
     verified: true,
-    online: false,
+    online: true,
     photoPrivacy: "public",
     chineseVariants: ["mandarin"],
   },
