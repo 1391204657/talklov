@@ -25,12 +25,19 @@ import {
   isValidNational,
   toE164,
 } from "./phone";
+import {
+  defaultNotifyPrefs,
+  type NotifyPrefs,
+  requestNotifyPermission,
+  setAppBadgeCount,
+} from "./notify";
 
 type Theme = "dark" | "light";
 type Locale = "zh" | "en";
 
 const KEY = "nihello_state_v1";
 const PHONE_MAP_KEY = "nihello_phone_map_v1";
+const NOTIFY_KEY = "nihello_notify_v1";
 
 type PhoneMap = Record<
   string,
@@ -99,6 +106,9 @@ interface AppState {
   setTheme: (t: Theme) => void;
   setLocale: (l: Locale) => void;
   toggleTheme: () => void;
+  notifyPrefs: NotifyPrefs;
+  setNotifyPrefs: (p: Partial<NotifyPrefs>) => Promise<{ ok: boolean; error?: string }>;
+  applyUnreadBadge: (count: number) => void;
   reset: () => void;
 }
 
@@ -121,6 +131,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [pendingHelloId, setPendingHelloId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [notifyPrefs, setNotifyPrefsState] = useState<NotifyPrefs>(defaultNotifyPrefs);
 
   useEffect(() => {
     try {
@@ -137,7 +148,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ...(s.myProfile ?? {}),
           chineseVariants: s.myProfile?.chineseVariants ?? [],
           phoneE164: s.myProfile?.phoneE164 ?? "",
+          voiceIntroUrl: s.myProfile?.voiceIntroUrl ?? "",
         });
+      }
+      const nRaw = localStorage.getItem(NOTIFY_KEY);
+      if (nRaw) {
+        setNotifyPrefsState({ ...defaultNotifyPrefs, ...JSON.parse(nRaw) });
       }
     } catch {}
   }, []);
@@ -148,7 +164,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
         KEY,
         JSON.stringify({ tier, region, installed, theme, locale, myProfile })
       );
-    } catch {}
+    } catch {
+      // Quota exceeded: persist profile without bulky data: photos so app still works.
+      try {
+        localStorage.setItem(
+          KEY,
+          JSON.stringify({
+            tier,
+            region,
+            installed,
+            theme,
+            locale,
+            myProfile: {
+              ...myProfile,
+              photos: myProfile.photos.filter((u) => !u.startsWith("data:")),
+            },
+          })
+        );
+      } catch {}
+    }
   }, [tier, region, installed, theme, locale, myProfile]);
 
   useEffect(() => {
@@ -158,6 +192,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.lang = locale === "en" ? "en" : "zh-CN";
   }, [locale]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(NOTIFY_KEY, JSON.stringify(notifyPrefs));
+    } catch {}
+  }, [notifyPrefs]);
+
+  const setNotifyPrefs = async (p: Partial<NotifyPrefs>) => {
+    let next = { ...notifyPrefs, ...p };
+    if (p.push === true) {
+      const perm = await requestNotifyPermission();
+      if (perm !== "granted") {
+        next = { ...next, push: false };
+        setNotifyPrefsState(next);
+        return {
+          ok: false,
+          error: perm === "unsupported" ? "unsupported" : "denied",
+        };
+      }
+      next = { ...next, push: true };
+    }
+    if (p.badge === false) {
+      void setAppBadgeCount(0, false);
+    }
+    setNotifyPrefsState(next);
+    return { ok: true };
+  };
+
+  const applyUnreadBadge = (count: number) => {
+    void setAppBadgeCount(count, notifyPrefs.badge);
+  };
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -173,9 +238,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const raw = await fetchDbProfile(uid);
         if (raw) {
+          const fromDb = dbToMyPartial(raw);
           setMyProfile((prev) => ({
             ...prev,
-            ...dbToMyPartial(raw),
+            ...fromDb,
+            // Keep locally uploaded data: photos if DB has none (Storage not wired yet)
+            photos:
+              fromDb.photos && fromDb.photos.length > 0
+                ? fromDb.photos
+                : prev.photos?.length
+                  ? prev.photos
+                  : [],
+            voiceIntroUrl: prev.voiceIntroUrl || "",
           }));
           setTier(raw.verified ? "verified" : "light");
         } else {
@@ -501,6 +575,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setTheme,
       setLocale,
       toggleTheme,
+      notifyPrefs,
+      setNotifyPrefs,
+      applyUnreadBadge,
       reset,
     }),
     [
@@ -515,6 +592,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       verifyOpen,
       pendingAction,
       pendingHelloId,
+      notifyPrefs,
     ]
   );
 

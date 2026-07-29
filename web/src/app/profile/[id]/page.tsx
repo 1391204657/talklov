@@ -14,6 +14,7 @@ import {
   openersLeftToday,
 } from "@/lib/quota";
 import ProfilePhoto from "@/components/ProfilePhoto";
+import VoicePlayButton from "@/components/VoicePlayButton";
 import { formatChineseVariants, shortLevel } from "@/lib/profile";
 
 const intentLabel: Record<string, string> = {
@@ -156,7 +157,11 @@ export default function ProfileDetail() {
               <path d="M15 5 8 12l7 7" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 px-5 pb-10 pt-5">
+          <VoicePlayButton
+            profile={profile}
+            className="absolute bottom-9 right-3.5"
+          />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 px-5 pb-10 pt-5 pr-14">
             <div className="flex flex-wrap items-center gap-2">
               <h1
                 className="text-[1.65rem] font-bold tracking-wide text-white"

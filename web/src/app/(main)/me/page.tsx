@@ -1,48 +1,35 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useApp } from "@/lib/store";
 import { ChineseVariant, PhotoPrivacy } from "@/lib/types";
 import { CompletenessBar } from "@/components/ProfileForm";
-import { profileCompleteness } from "@/lib/profile";
+import MeAvatarButton from "@/components/MeAvatarButton";
+import { tApp } from "@/lib/appCopy";
+import { notificationPermission, playMessageSound } from "@/lib/notify";
+import {
+  DATING_SCENE_ID,
+  formatLearnDate,
+  loadLearnRecords,
+  type LearnRecord,
+} from "@/lib/datingSim";
 
-const tierLabel: Record<string, { label: string; color: string; }> = {
-  guest: { label: "游客（未注册）", color: "text-muted" },
-  light: { label: "轻账号（已注册）", color: "text-accent-2" },
-  verified: { label: "已真人认证", color: "text-success" },
-};
-
-const privacyOptions: { id: PhotoPrivacy; label: string; desc: string; }[] = [
-  {
-    id: "public",
-    label: "所有人可见",
-    desc: "包括未注册游客（默认，曝光最高）",
-  },
-  {
-    id: "loggedIn",
-    label: "仅登录用户可见",
-    desc: "游客看到的是模糊图",
-  },
-  {
-    id: "verified",
-    label: "仅认证用户可见",
-    desc: "最谨慎，只有通过真人认证的人能看",
-  },
-];
-
-const CHINESE_VARIANT_OPTIONS: [ChineseVariant, string][] = [
-  ["mandarin", "普通话"],
-  ["cantonese", "粤语"],
+const CHINESE_VARIANT_OPTIONS: [ChineseVariant, string, string][] = [
+  ["mandarin", "普通话", "Mandarin"],
+  ["cantonese", "粤语", "Cantonese"],
 ];
 
 function ComingSoonRow({
   icon,
   label,
   subtitle,
+  soon,
 }: {
   icon: string;
   label: string;
   subtitle?: string;
+  soon: string;
 }) {
   return (
     <div className="flex items-center justify-between px-4 py-3 opacity-60">
@@ -54,8 +41,52 @@ function ComingSoonRow({
           <div className="mt-0.5 text-xs text-muted">{subtitle}</div>
         )}
       </div>
-      <span className="shrink-0 text-xs text-muted">即将推出</span>
+      <span className="shrink-0 text-xs text-muted">{soon}</span>
     </div>
+  );
+}
+
+function ToggleRow({
+  title,
+  desc,
+  on,
+  onToggle,
+  status,
+}: {
+  title: string;
+  desc: string;
+  on: boolean;
+  onToggle: () => void;
+  status: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex w-full items-start justify-between gap-3 border-t border-line px-4 py-3 text-left first:border-t-0"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium">{title}</div>
+        <div className="mt-0.5 text-xs leading-relaxed text-muted">{desc}</div>
+      </div>
+      <span
+        className={`mt-0.5 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${
+          on ? "bg-accent/15 text-accent" : "bg-surface-2 text-muted"
+        }`}
+      >
+        {status}
+      </span>
+    </button>
+  );
+}
+
+function Stars({ n }: { n: number }) {
+  const s = Math.max(0, Math.min(5, n));
+  return (
+    <span className="text-amber-500">
+      {"★".repeat(s)}
+      <span className="text-muted">{"★".repeat(5 - s)}</span>
+    </span>
   );
 }
 
@@ -75,13 +106,32 @@ export default function Me() {
     reset,
     signOut,
     configured,
+    notifyPrefs,
+    setNotifyPrefs,
   } = useApp();
 
-  const t = tierLabel[tier];
-  const { percent } = profileCompleteness(myProfile, tier === "verified");
+  const c = tApp(locale);
+  const tierMeta =
+    tier === "verified"
+      ? { label: c.tierVerified, color: "text-success" }
+      : tier === "light"
+        ? { label: c.tierLight, color: "text-accent-2" }
+        : { label: c.tierGuest, color: "text-muted" };
   const avatar = myProfile.photos[0];
   const chineseVariants = myProfile.chineseVariants ?? [];
   const showChineseVariants = myProfile.nativeLang === "中文";
+  const [notifyErr, setNotifyErr] = useState<string | null>(null);
+  const [learnRecords, setLearnRecords] = useState<LearnRecord[]>([]);
+
+  useEffect(() => {
+    setLearnRecords(loadLearnRecords());
+  }, []);
+
+  const privacyOptions: { id: PhotoPrivacy; label: string; desc: string }[] = [
+    { id: "public", label: c.privacyPublic, desc: c.privacyPublicDesc },
+    { id: "loggedIn", label: c.privacyLoggedIn, desc: c.privacyLoggedInDesc },
+    { id: "verified", label: c.privacyVerified, desc: c.privacyVerifiedDesc },
+  ];
 
   const toggleChineseVariant = (id: ChineseVariant) => {
     const on = chineseVariants.includes(id);
@@ -92,9 +142,32 @@ export default function Me() {
     });
   };
 
+  const togglePush = async () => {
+    setNotifyErr(null);
+    if (notifyPrefs.push) {
+      await setNotifyPrefs({ push: false });
+      return;
+    }
+    const res = await setNotifyPrefs({ push: true });
+    if (!res.ok) setNotifyErr(c.notifyDenied);
+  };
+
+  const toggleBadge = async () => {
+    await setNotifyPrefs({ badge: !notifyPrefs.badge });
+  };
+
+  const toggleSound = async () => {
+    const next = !notifyPrefs.sound;
+    await setNotifyPrefs({ sound: next });
+    if (next) playMessageSound(true);
+  };
+
   return (
     <main>
-      <div className="space-y-4 p-4 pt-3">
+      <header className="mb-1 flex items-center justify-end px-4 pt-3">
+        <MeAvatarButton />
+      </header>
+      <div className="space-y-4 px-4 pb-4">
         <div className="rounded-2xl border border-line bg-surface p-4">
           <div className="flex items-center gap-3">
             <div
@@ -114,21 +187,17 @@ export default function Me() {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-lg font-semibold">
-                  {myProfile.name || "未注册用户"}
+                  {myProfile.name || c.guestUser}
                 </span>
                 {tier === "verified" && (
                   <span className="rounded-full bg-accent-2/15 px-2 py-0.5 text-[11px] font-medium text-accent-2">
-                    ✓ 已认证
+                    ✓
                   </span>
                 )}
               </div>
-              <div className={`text-sm ${t.color}`}>● {t.label}</div>
-              {myProfile.city && (
-                <div className="text-xs text-muted">
-                  {myProfile.city}
-                  {myProfile.occupation ? ` · ${myProfile.occupation}` : ""}
-                </div>
-              )}
+              <div className={`mt-0.5 text-xs ${tierMeta.color}`}>
+                {tierMeta.label}
+              </div>
             </div>
           </div>
 
@@ -143,10 +212,10 @@ export default function Me() {
 
           {tier === "guest" && (
             <button
-              onClick={() => openRegister("完善你的资料")}
+              onClick={() => openRegister()}
               className="btn-grad mt-4 w-full rounded-xl py-2.5 text-sm font-semibold"
             >
-              注册 / 登录
+              {c.registerLogin}
             </button>
           )}
 
@@ -157,35 +226,139 @@ export default function Me() {
                   onClick={() => openVerify()}
                   className="col-span-2 rounded-xl border border-success/40 bg-success/10 py-2.5 text-sm font-semibold text-success"
                 >
-                  🛡️ 真人认证
+                  🛡️ {locale === "en" ? "Verify selfie" : "真人认证"}
                 </button>
               )}
               <Link
                 href={userId ? `/profile/${userId}` : "/profile/me"}
                 className="rounded-xl border border-line py-2.5 text-center text-sm font-medium"
               >
-                预览我的主页
+                {locale === "en" ? "Preview profile" : "预览我的主页"}
               </Link>
               <Link
                 href="/me/edit"
                 className="rounded-xl border border-line py-2.5 text-center text-sm font-medium"
               >
-                编辑资料{percent < 90 ? " · 去完善" : ""}
+                {locale === "en" ? "Edit profile" : "编辑资料"}
               </Link>
             </div>
           )}
         </div>
 
         <div className="rounded-2xl border border-line bg-surface p-4">
-          <div className="font-semibold">🌐 语言与地区</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="font-semibold">
+              📚 {locale === "en" ? "Lianyu log" : "练遇记录"}
+            </div>
+            <Link href="/learn" className="text-xs text-accent">
+              {locale === "en" ? "Go to Lianyu" : "去练遇"}
+            </Link>
+          </div>
+
+          {learnRecords.length === 0 ? (
+            <div className="mt-3 rounded-xl bg-surface-2/80 px-3 py-4 text-center text-sm text-muted">
+              {locale === "en"
+                ? "Finish a dating icebreaker scene to unlock your first badge here."
+                : "完成一次「美式约会破冰」后，通关勋章会显示在这里。"}
+              <div className="mt-3">
+                <Link
+                  href={`/learn?practice=${DATING_SCENE_ID}`}
+                  className="inline-flex rounded-full bg-accent px-4 py-1.5 text-xs font-medium text-white"
+                >
+                  {locale === "en" ? "Start scene 1" : "开始场景 1"}
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {learnRecords.slice(0, 8).map((r) => (
+                <li
+                  key={r.id}
+                  className="rounded-xl border border-line bg-background/60 px-3 py-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">{r.sceneTitle}</div>
+                      <div className="mt-0.5 text-[11px] text-muted">
+                        {formatLearnDate(r.completedAt, locale)}
+                      </div>
+                    </div>
+                    <Stars n={r.stars} />
+                  </div>
+                  {r.bestLine ? (
+                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted">
+                      「{r.bestLine}」
+                    </p>
+                  ) : null}
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+                    <span>
+                      {locale === "en" ? "Natural" : "自然"} {r.naturalness}%
+                    </span>
+                    <span>
+                      {locale === "en" ? "Polite" : "礼貌"} {r.politeness}%
+                    </span>
+                    <span>
+                      {locale === "en" ? "Vibe" : "合适度"} {r.vibe}%
+                    </span>
+                  </div>
+                  <div className="mt-2.5 flex gap-2">
+                    <Link
+                      href={`/learn?practice=${r.sceneId}`}
+                      className="rounded-full border border-line px-3 py-1 text-[11px] font-medium"
+                    >
+                      {locale === "en" ? "Practice again" : "再练一次"}
+                    </Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+          <div className="px-4 py-3 font-semibold">🔔 {c.notifyTitle}</div>
+          <ToggleRow
+            title={c.notifyPush}
+            desc={c.notifyPushDesc}
+            on={notifyPrefs.push && notificationPermission() === "granted"}
+            status={
+              notifyPrefs.push && notificationPermission() === "granted"
+                ? c.notifyOn
+                : c.notifyOff
+            }
+            onToggle={togglePush}
+          />
+          <ToggleRow
+            title={c.notifyBadge}
+            desc={c.notifyBadgeDesc}
+            on={notifyPrefs.badge}
+            status={notifyPrefs.badge ? c.notifyOn : c.notifyOff}
+            onToggle={toggleBadge}
+          />
+          <ToggleRow
+            title={c.notifySound}
+            desc={c.notifySoundDesc}
+            on={notifyPrefs.sound}
+            status={notifyPrefs.sound ? c.notifyOn : c.notifyOff}
+            onToggle={toggleSound}
+          />
+          {notifyErr && (
+            <p className="border-t border-line px-4 py-2 text-xs text-danger">
+              {notifyErr}
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-line bg-surface p-4">
+          <div className="font-semibold">🌐 {c.langRegion}</div>
           <div className="mt-3">
-            <div className="text-xs text-muted">界面语言</div>
+            <div className="text-xs text-muted">{c.uiLanguage}</div>
             <div className="mt-2 grid grid-cols-2 gap-2">
               {(
                 [
-                  { id: "zh", label: "中文" },
-                  { id: "en", label: "English" },
-                ] as const
+                  { id: "zh" as const, label: "中文" },
+                  { id: "en" as const, label: "English" },
+                ]
               ).map((o) => (
                 <button
                   key={o.id}
@@ -203,9 +376,9 @@ export default function Me() {
           </div>
           {showChineseVariants && (
             <div className="mt-4">
-              <div className="text-xs text-muted">中文变体（可多选）</div>
+              <div className="text-xs text-muted">{c.chineseVariants}</div>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                {CHINESE_VARIANT_OPTIONS.map(([id, label]) => {
+                {CHINESE_VARIANT_OPTIONS.map(([id, zh, en]) => {
                   const on = chineseVariants.includes(id);
                   return (
                     <button
@@ -217,7 +390,7 @@ export default function Me() {
                           : "border-line text-muted"
                       }`}
                     >
-                      {label}
+                      {locale === "en" ? en : zh}
                     </button>
                   );
                 })}
@@ -227,13 +400,13 @@ export default function Me() {
         </div>
 
         <div className="rounded-2xl border border-line bg-surface p-4">
-          <div className="font-semibold">🎨 外观主题</div>
+          <div className="font-semibold">🎨 {c.appearance}</div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {(
               [
-                { id: "light", label: "☀️ 浅色" },
-                { id: "dark", label: "🌙 深色" },
-              ] as const
+                { id: "light" as const, label: `☀️ ${c.light}` },
+                { id: "dark" as const, label: `🌙 ${c.dark}` },
+              ]
             ).map((o) => (
               <button
                 key={o.id}
@@ -252,10 +425,8 @@ export default function Me() {
 
         {tier !== "guest" && (
           <div className="rounded-2xl border border-line bg-surface p-4">
-            <div className="font-semibold">📷 照片可见范围</div>
-            <p className="mt-1 text-xs text-muted">
-              控制谁能看到你的清晰照片。信任等级越高，可见范围越可收紧。
-            </p>
+            <div className="font-semibold">📷 {c.photoPrivacy}</div>
+            <p className="mt-1 text-xs text-muted">{c.photoPrivacyHint}</p>
             <div className="mt-3 space-y-2">
               {privacyOptions.map((o) => {
                 const active = myProfile.photoPrivacy === o.id;
@@ -289,37 +460,59 @@ export default function Me() {
 
         <div className="overflow-hidden rounded-2xl border border-line bg-surface">
           <div className="border-b border-line px-4 py-3 font-semibold">
-            🛡️ 隐私与安全
+            🛡️ {c.privacySecurity}
           </div>
           {myProfile.phoneE164 ? (
             <div className="flex items-center justify-between px-4 py-3">
               <div className="min-w-0 flex-1">
-                <div className="text-sm">📱 登录手机号</div>
+                <div className="text-sm">📱 {c.phoneBound}</div>
                 <div className="mt-0.5 text-xs text-muted">
-                  {myProfile.phoneE164} · 一号一账号
+                  {myProfile.phoneE164} · {c.phoneBoundHint}
                 </div>
               </div>
-              <span className="shrink-0 text-xs text-success">已绑定</span>
+              <span className="shrink-0 text-xs text-success">{c.phoneBoundOk}</span>
             </div>
           ) : (
             <ComingSoonRow
               icon="📱"
-              label="登录手机号"
-              subtitle="请用手机验证码登录 / 注册"
+              label={c.phoneBound}
+              subtitle={c.phoneNeedLogin}
+              soon={c.comingSoon}
             />
           )}
           <div className="border-t border-line">
             <ComingSoonRow
               icon="✉️"
-              label="绑定邮箱（可选）"
-              subtitle="用于找回与通知 · 绑定后需验证邮箱"
+              label={c.emailBind}
+              subtitle={c.emailBindHint}
+              soon={c.comingSoon}
             />
           </div>
         </div>
 
+        <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+          <div className="border-b border-line px-4 py-3 font-semibold">
+            📜 {c.legalTitle}
+          </div>
+          <Link
+            href="/terms"
+            className="flex items-center justify-between px-4 py-3 text-sm hover:bg-surface-2/50"
+          >
+            <span>{c.terms}</span>
+            <span className="text-muted">›</span>
+          </Link>
+          <Link
+            href="/privacy"
+            className="flex items-center justify-between border-t border-line px-4 py-3 text-sm hover:bg-surface-2/50"
+          >
+            <span>{c.privacy}</span>
+            <span className="text-muted">›</span>
+          </Link>
+        </div>
+
         <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
-          <ComingSoonRow icon="🚫" label="黑名单 / 举报记录" />
-          <ComingSoonRow icon="💎" label="会员订阅" />
+          <ComingSoonRow icon="🚫" label={c.blacklist} soon={c.comingSoon} />
+          <ComingSoonRow icon="💎" label={c.membership} soon={c.comingSoon} />
         </div>
 
         {configured && tier !== "guest" && (
@@ -327,7 +520,7 @@ export default function Me() {
             onClick={() => signOut()}
             className="w-full rounded-xl border border-line py-2.5 text-sm text-muted"
           >
-            退出登录
+            {c.signOut}
           </button>
         )}
 
@@ -335,7 +528,7 @@ export default function Me() {
           onClick={reset}
           className="w-full rounded-xl border border-line py-2.5 text-xs text-muted"
         >
-          （演示）重置为游客状态
+          {c.resetDemo}
         </button>
       </div>
     </main>

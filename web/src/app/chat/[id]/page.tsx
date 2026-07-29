@@ -7,6 +7,7 @@ import { ChatMessage } from "@/lib/types";
 import { useApp } from "@/lib/store";
 import { useProfile } from "@/lib/useProfiles";
 import { takeOpener } from "@/lib/openers";
+import { consumeOpenerDraft } from "@/lib/datingSim";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   resolveConversation,
@@ -14,6 +15,8 @@ import {
   sendMessage as dbSendMessage,
   subscribeMessages,
 } from "@/lib/db";
+
+const AI_PERSONAS = new Set(["mei", "jack"]);
 
 const SCAM_PATTERNS = [
   "转账", "汇款", "打钱", "投资", "比特币", "bitcoin", "wire", "money",
@@ -67,22 +70,26 @@ export default function Chat() {
   const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  // Mock mode: seed the chat with the opener written on the profile page.
+  // Seed opener from profile hello, and/or AI practice draft into composer.
   useEffect(() => {
-    if (!profile || useBackend) return;
-    const o = takeOpener(profile.id);
-    if (o) {
-      setMessages([
-        {
-          id: `opener-${Date.now()}`,
-          fromMe: true,
-          kind: "text",
-          text: o,
-          translation: autoTranslate ? "（自动翻译预览）" : undefined,
-          time: "刚刚",
-        },
-      ]);
+    if (!profile) return;
+    if (!useBackend) {
+      const o = takeOpener(profile.id);
+      if (o) {
+        setMessages([
+          {
+            id: `opener-${Date.now()}`,
+            fromMe: true,
+            kind: "text",
+            text: o,
+            translation: autoTranslate ? "（自动翻译预览）" : undefined,
+            time: "刚刚",
+          },
+        ]);
+      }
     }
+    const practice = consumeOpenerDraft();
+    if (practice) setInput(practice);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id, useBackend]);
 
@@ -129,10 +136,10 @@ export default function Chat() {
     );
   }
 
-  if (tier !== "verified") {
+  if (tier !== "verified" && !AI_PERSONAS.has(params.id)) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-        <div className="text-5xl">🛡️</div>
+        <svg viewBox="0 0 48 48" className="h-12 w-12 text-muted" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M24 4 6 12v12c0 11 18 18 18 18s18-7 18-18V12L24 4Z" /></svg>
         <h2 className="text-xl font-bold">聊天前需要真人认证</h2>
         <p className="text-sm text-muted">
           为防止骗子与虚假账号，进入会话前请先完成真人核验（自拍活体，不采集证件实名）。
@@ -203,29 +210,62 @@ export default function Chat() {
       setScamWarn(true);
       return;
     }
+    const userMsg: ChatMessage = {
+      id: `m${Date.now()}`,
+      fromMe: true,
+      kind: "text",
+      text,
+      translation: autoTranslate
+        ? "（自动翻译预览：译文会显示在这里）"
+        : undefined,
+      time: "刚刚",
+    };
     if (useBackend && conversationId) {
-      // Realtime subscription will append the row once persisted.
       dbSendMessage(conversationId, { kind: "text", content: text }).catch(
         () => {}
       );
     } else {
-      setMessages((m) => [
-        ...m,
-        {
-          id: `m${Date.now()}`,
-          fromMe: true,
-          kind: "text",
-          text,
-          translation: autoTranslate
-            ? "（自动翻译预览：译文会显示在这里）"
-            : undefined,
-          time: "刚刚",
-        },
-      ]);
+      setMessages((m) => [...m, userMsg]);
     }
     setInput("");
     setPolish(null);
     setIcebreakers(null);
+
+    if (AI_PERSONAS.has(params.id)) {
+      requestAiReply(text);
+    }
+  };
+
+  const requestAiReply = async (lastUserText: string) => {
+    const recentHistory = [...messages.slice(-10), { id: "_", fromMe: true, kind: "text" as const, text: lastUserText, time: "" }]
+      .map((m) => ({ role: (m.fromMe ? "user" : "them") as "user" | "them", text: m.text }));
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "chat_reply",
+          persona: params.id,
+          chatHistory: recentHistory,
+        }),
+      });
+      const data = await res.json();
+      if (data.reply) {
+        setTimeout(() => {
+          setMessages((m) => [
+            ...m,
+            {
+              id: `ai-${Date.now()}`,
+              fromMe: false,
+              kind: "text",
+              text: data.reply,
+              translation: autoTranslate ? undefined : undefined,
+              time: "刚刚",
+            },
+          ]);
+        }, 800 + Math.random() * 1200);
+      }
+    } catch {}
   };
 
   // --- Speech to text (voice input) ---
@@ -332,8 +372,8 @@ export default function Chat() {
             {profile.online ? "在线" : "离线"}
           </div>
         </div>
-        <button className="text-sm text-muted">📞</button>
-        <button className="text-sm text-muted">🎥</button>
+        <button className="text-sm text-muted"><svg viewBox="0 0 20 20" className="inline h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h2a1 1 0 0 1 .95.68l.8 2.4a1 1 0 0 1-.27 1.02L6.7 7.38a10 10 0 0 0 5.92 5.92l1.28-1.28a1 1 0 0 1 1.02-.27l2.4.8a1 1 0 0 1 .68.95v2a2.5 2.5 0 0 1-2.5 2.5C8.6 18 2 11.4 2 4.5Z" /></svg></button>
+        <button className="text-sm text-muted"><svg viewBox="0 0 20 20" className="inline h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="16" height="12" rx="2" /><path d="m15 7 3-2v10l-3-2" /></svg></button>
       </header>
 
       {showSafety && (
@@ -410,13 +450,13 @@ export default function Chat() {
                       setShowTrans((s) => ({ ...s, [m.id]: !s[m.id] }))
                     }
                   >
-                    🌐 {showTrans[m.id] ? "隐藏翻译" : "翻译"}
+                    <svg viewBox="0 0 16 16" className="mr-0.5 inline h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="6.5" /><path d="M1.5 8h13M8 1.5a10 10 0 0 1 2.5 6.5 10 10 0 0 1-2.5 6.5 10 10 0 0 1-2.5-6.5A10 10 0 0 1 8 1.5Z" /></svg>{showTrans[m.id] ? "隐藏翻译" : "翻译"}
                   </button>
                 )}
                 {m.kind !== "voice" && (
-                  <button onClick={() => speak(m.text)}>🔊 朗读</button>
+                  <button onClick={() => speak(m.text)}><svg viewBox="0 0 16 16" className="mr-0.5 inline h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h2l4-3v10L5 10H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z" /><path d="M11 5.5a3.5 3.5 0 0 1 0 5" /></svg>朗读</button>
                 )}
-                {!m.fromMe && m.kind !== "voice" && <button>✍️ 纠错</button>}
+                {!m.fromMe && m.kind !== "voice" && <button><svg viewBox="0 0 16 16" className="mr-0.5 inline h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2.5l3.5 3.5L5 14.5H1.5V11L10 2.5Z" /></svg>纠错</button>}
                 <span>{m.time}</span>
               </div>
             </div>
@@ -427,7 +467,7 @@ export default function Chat() {
       {icebreakers && (
         <div className="animate-fadeUp border-t border-line bg-surface-2/60 p-3">
           <div className="mb-2 flex items-center justify-between text-xs">
-            <span className="font-medium text-accent">✨ AI 破冰话题</span>
+            <span className="font-medium text-accent">AI 破冰话题</span>
             <button onClick={() => setIcebreakers(null)} className="text-muted">
               收起
             </button>
@@ -457,7 +497,7 @@ export default function Chat() {
       {polish && (
         <div className="animate-fadeUp border-t border-line bg-surface-2/60 p-3">
           <div className="mb-2 flex items-center justify-between text-xs">
-            <span className="font-medium text-accent">✨ 润色建议</span>
+            <span className="font-medium text-accent">润色建议</span>
             <button onClick={() => setPolish(null)} className="text-muted">
               收起
             </button>
@@ -467,7 +507,7 @@ export default function Chat() {
           </div>
           {polish.translation && (
             <div className="mt-1 rounded-xl bg-surface px-2.5 py-1.5 text-[12px] text-muted">
-              🌐 {polish.translation}
+              {polish.translation}
             </div>
           )}
           <div className="mt-2 flex gap-2">
@@ -497,21 +537,21 @@ export default function Chat() {
             autoTranslate ? "bg-accent/15 text-accent" : "bg-surface-2 text-muted"
           }`}
         >
-          🌐 自动翻译 {autoTranslate ? "开" : "关"}
+          自动翻译 {autoTranslate ? "开" : "关"}
         </button>
         <button
           onClick={fetchIcebreakers}
           disabled={aiBusy !== null}
           className="whitespace-nowrap rounded-full bg-surface-2 px-3 py-1 text-muted disabled:opacity-50"
         >
-          {aiBusy === "icebreakers" ? "生成中…" : "✨ AI 破冰"}
+          {aiBusy === "icebreakers" ? "生成中…" : "AI 破冰"}
         </button>
         <button
           onClick={doPolish}
           disabled={aiBusy !== null || !input.trim()}
           className="whitespace-nowrap rounded-full bg-surface-2 px-3 py-1 text-muted disabled:opacity-50"
         >
-          {aiBusy === "polish" ? "润色中…" : "✨ AI 润色"}
+          {aiBusy === "polish" ? "润色中…" : "AI 润色"}
         </button>
         <button
           onClick={startVoiceInput}
@@ -519,7 +559,7 @@ export default function Chat() {
             listening ? "bg-accent/15 text-accent" : "bg-surface-2 text-muted"
           }`}
         >
-          {listening ? "🎤 聆听中…" : "🎤 语音输入"}
+          {listening ? "聆听中…" : "语音输入"}
         </button>
       </div>
 
@@ -531,7 +571,7 @@ export default function Chat() {
           }`}
           title="按一下开始录音，再按一下发送语音"
         >
-          {recording ? "■" : "🎙️"}
+          {recording ? "■" : <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2" width="6" height="10" rx="3" /><path d="M4 9a6 6 0 0 0 12 0" /><path d="M10 15v3" /><path d="M7 18h6" /></svg>}
         </button>
         {recording ? (
           <div className="flex flex-1 items-center gap-2 rounded-full bg-danger/10 px-4 py-2.5 text-sm text-danger">
@@ -563,7 +603,7 @@ export default function Chat() {
             onClick={() => setScamWarn(false)}
           />
           <div className="animate-fadeUp relative w-full max-w-sm rounded-2xl border border-danger/40 bg-surface p-5 text-center">
-            <div className="text-4xl">🚨</div>
+            <svg viewBox="0 0 48 48" className="mx-auto h-10 w-10 text-danger" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M24 4 2 42h44L24 4Z" /><path d="M24 18v10" /><circle cx="24" cy="34" r="1.5" fill="currentColor" stroke="none" /></svg>
             <h3 className="mt-2 text-lg font-bold text-danger">
               检测到高风险内容
             </h3>

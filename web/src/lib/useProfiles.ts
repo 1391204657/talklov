@@ -15,13 +15,37 @@ export function isUuid(id: string): boolean {
   return UUID_RE.test(id);
 }
 
-/** Always keep mock demos in the feed; append DB users (except me). */
-function mergeDiscover(db: Profile[], myId: string | null): Profile[] {
-  const others = myId ? db.filter((p) => p.id !== myId) : db;
-  // Prefer real users first, then mock scenery so Discover never collapses to 1 card.
+/** Temporary cleanup: hide leftover Vince test accounts from Discover. */
+function isJunkTestProfile(p: Profile): boolean {
+  const n = (p.name || "").trim().toLowerCase();
+  return n === "vince" || n === "vince test" || /^vince(\s|$)/i.test(n);
+}
+
+/** Always keep mock demos in the feed; prepend my card when I have a profile photo. */
+function mergeDiscover(
+  db: Profile[],
+  myId: string | null,
+  mine?: MyProfile | null,
+  verified = false,
+  tier: "guest" | "light" | "verified" = "guest"
+): Profile[] {
+  const others = (myId ? db.filter((p) => p.id !== myId) : db).filter(
+    (p) => !isJunkTestProfile(p)
+  );
   const mockIds = new Set(mockProfiles.map((m) => m.id));
   const realExtra = others.filter((p) => !mockIds.has(p.id));
-  return [...realExtra, ...mockProfiles];
+  const feed = [...realExtra, ...mockProfiles];
+  // Testing: show my uploaded profile in Discover (local data: photos included).
+  const showMe =
+    tier !== "guest" &&
+    mine &&
+    (Boolean(mine.photos?.[0]) || Boolean(mine.name?.trim()));
+  if (showMe) {
+    const id = myId || "me";
+    const me = myProfileToPreview(id, mine, verified);
+    return [me, ...feed.filter((p) => p.id !== id)];
+  }
+  return feed;
 }
 
 export function myProfileToPreview(
@@ -48,6 +72,7 @@ export function myProfileToPreview(
     online: true,
     photoPrivacy: mine.photoPrivacy,
     chineseVariants: mine.chineseVariants,
+    voiceIntroUrl: mine.voiceIntroUrl || undefined,
   };
 }
 
@@ -56,13 +81,17 @@ export function myProfileToPreview(
  * Own profile is excluded here — open 「预览我的主页」 instead.
  */
 export function useProfiles(): { profiles: Profile[]; loading: boolean } {
-  const { userId } = useApp();
-  const [profiles, setProfiles] = useState<Profile[]>(mockProfiles);
+  const { userId, myProfile, tier } = useApp();
+  const [profiles, setProfiles] = useState<Profile[]>(() =>
+    mergeDiscover([], userId, myProfile, tier === "verified", tier)
+  );
   const [loading, setLoading] = useState(isSupabaseConfigured);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      setProfiles(mockProfiles);
+      setProfiles(
+        mergeDiscover([], userId, myProfile, tier === "verified", tier)
+      );
       setLoading(false);
       return;
     }
@@ -70,16 +99,22 @@ export function useProfiles(): { profiles: Profile[]; loading: boolean } {
     fetchProfiles()
       .then((rows) => {
         if (cancelled) return;
-        setProfiles(mergeDiscover(rows, userId));
+        setProfiles(
+          mergeDiscover(rows, userId, myProfile, tier === "verified", tier)
+        );
       })
       .catch(() => {
-        if (!cancelled) setProfiles(mockProfiles);
+        if (!cancelled) {
+          setProfiles(
+            mergeDiscover([], userId, myProfile, tier === "verified", tier)
+          );
+        }
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, myProfile, tier]);
 
   return { profiles, loading };
 }

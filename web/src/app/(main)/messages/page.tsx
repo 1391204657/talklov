@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { profiles as mockProfiles } from "@/lib/mockData";
 import { useApp } from "@/lib/store";
 import { Profile } from "@/lib/types";
+import MeAvatarButton from "@/components/MeAvatarButton";
 import {
   acceptIcebreaker,
   declineIcebreaker,
@@ -15,6 +16,7 @@ import {
   type ConversationSummary,
   type PendingIcebreaker,
 } from "@/lib/db";
+import { consumeOpenerDraft, writeOpenerDraft } from "@/lib/datingSim";
 
 interface QueueItem {
   id: string;
@@ -23,13 +25,26 @@ interface QueueItem {
 }
 
 export default function Messages() {
-  const { tier, configured, userId } = useApp();
+  const { tier, configured, userId, applyUnreadBadge, notifyPrefs } = useApp();
   const router = useRouter();
   const useBackend = configured && !!userId;
 
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [convos, setConvos] = useState<ConversationSummary[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [shareMode, setShareMode] = useState(false);
+  const [shareDraft, setShareDraft] = useState("");
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("share") !== "1") return;
+    setShareMode(true);
+    const d = consumeOpenerDraft();
+    if (d) {
+      setShareDraft(d);
+      writeOpenerDraft(d);
+    }
+  }, []);
 
   // Offline demo: a sample incoming opener so the queue UI is visible.
   useEffect(() => {
@@ -45,6 +60,10 @@ export default function Messages() {
       ]);
     }
   }, [useBackend]);
+
+  useEffect(() => {
+    applyUnreadBadge(queue.length);
+  }, [queue.length, applyUnreadBadge, notifyPrefs.badge]);
 
   // Backend: load pending openers + accepted conversations, subscribe to changes.
   useEffect(() => {
@@ -88,24 +107,79 @@ export default function Messages() {
     setQueue((q) => q.filter((x) => x.id !== item.id));
   };
 
+  const pickShareTarget = (id: string) => {
+    if (shareDraft) writeOpenerDraft(shareDraft);
+    router.push(`/chat/${id}`);
+  };
+
+  const shareCandidates = mockProfiles
+    .filter((p) => p.country === "US")
+    .slice(0, 6);
+
   if (tier === "guest") {
     return (
-      <EmptyState
-        title="还没有会话"
-        desc="去发现页找到合拍的人，打个招呼就能开始聊天。"
-      />
+      <main>
+        <header className="sticky top-0 z-20 flex items-center justify-end bg-background/90 px-4 py-2 backdrop-blur">
+          <MeAvatarButton />
+        </header>
+        <EmptyState
+          title="还没有会话"
+          desc="去发现页找到合拍的人，打个招呼就能开始聊天。"
+        />
+      </main>
     );
   }
 
   const offlineConvos = mockProfiles.slice(0, 3);
 
   return (
-    <main className="pt-3">
+    <main>
+      <header className="sticky top-0 z-20 flex items-center justify-end bg-background/90 px-4 py-2 backdrop-blur">
+        <MeAvatarButton />
+      </header>
+      <div className="pt-1">
+        {shareMode && (
+          <section className="mx-4 mb-3 rounded-2xl border border-accent/30 bg-accent/10 p-3">
+            <div className="text-sm font-semibold">发送练习成果给搭子</div>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              选择一位美区搭子，开场白会自动填入聊天框。
+            </p>
+            {shareDraft ? (
+              <p className="mt-2 line-clamp-3 rounded-xl bg-background/80 px-3 py-2 text-xs leading-relaxed">
+                {shareDraft}
+              </p>
+            ) : null}
+            <ul className="mt-3 space-y-2">
+              {shareCandidates.map((p) => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => pickShareTarget(p.id)}
+                    className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2 text-left"
+                  >
+                    <div
+                      className="h-10 w-10 rounded-full bg-cover bg-center"
+                      style={{ backgroundImage: `url(${p.photo})` }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium">{p.name}</div>
+                      <div className="truncate text-[11px] text-muted">
+                        {p.city}
+                      </div>
+                    </div>
+                    <span className="text-xs text-accent">发送</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
       {/* Pending opener queue (待接受) */}
       {queue.length > 0 && (
         <section className="px-4 pb-2">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-            <span>💌 待接受</span>
+            <span>待接受</span>
             <span className="rounded-full bg-accent px-1.5 text-[11px] leading-5 text-white">
               {queue.length}
             </span>
@@ -176,7 +250,7 @@ export default function Messages() {
               </Link>
             </li>
           ))}
-          {convos.length === 0 && queue.length === 0 && (
+          {convos.length === 0 && queue.length === 0 && !shareMode && (
             <li className="p-10 text-center text-sm text-muted">
               还没有会话，去发现页打个招呼吧～
             </li>
@@ -213,14 +287,15 @@ export default function Messages() {
           ))}
         </ul>
       )}
+      </div>
     </main>
   );
 }
 
 function EmptyState({ title, desc }: { title: string; desc: string }) {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-2 p-10 text-center">
-      <div className="text-5xl">💬</div>
+    <div className="flex flex-1 flex-col items-center justify-center gap-2 p-10 text-center">
+      <svg viewBox="0 0 48 48" className="h-12 w-12 text-muted" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 12a4 4 0 0 1 4-4h28a4 4 0 0 1 4 4v18a4 4 0 0 1-4 4H20l-8 6v-6h-2a4 4 0 0 1-4-4V12Z" /></svg>
       <h2 className="text-lg font-bold">{title}</h2>
       <p className="text-sm text-muted">{desc}</p>
       <Link
@@ -229,6 +304,6 @@ function EmptyState({ title, desc }: { title: string; desc: string }) {
       >
         去发现
       </Link>
-    </main>
+    </div>
   );
 }

@@ -157,7 +157,7 @@ export function DeviceShowcase({
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background to-transparent" />
           </div>
           <div className="grid grid-cols-5 border-t border-line bg-surface/80 py-1.5 text-center text-[7px] text-muted">
-            {["发现", "消息", "动态", "学习", "我的"].map((l, i) => (
+            {["发现", "消息", "动态", "练遇", "我的"].map((l, i) => (
               <span key={l} className={i === 0 ? "text-accent" : ""}>
                 {l}
               </span>

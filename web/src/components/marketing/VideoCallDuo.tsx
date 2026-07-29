@@ -48,23 +48,22 @@ function FaceTimePhone({
   );
 }
 
-/** Two FaceTime-style phones with slight overlap. */
+/** Two FaceTime-style phones with slight overlap — woman in front. */
 export function VideoCallDuo() {
   return (
-    <div className="relative mx-auto flex w-full max-w-[460px] items-end justify-center px-2">
+    <div className="relative mx-auto flex w-full max-w-[420px] items-end justify-center px-2 sm:max-w-[480px]">
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-44 w-44 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(232,137,176,0.4),transparent_70%)] blur-2xl" />
 
-      {/* US man slightly behind; CN woman in front */}
       <FaceTimePhone
-        className="relative z-20 mr-1 sm:mr-2"
-        rotate="rotate(-7deg)"
+        className="relative z-20 origin-bottom scale-[0.82] sm:scale-100"
+        rotate="rotate(-5deg)"
         remoteSrc="/brand/call-cn-woman.png"
         remoteName="林晓 Lin"
       />
 
       <FaceTimePhone
-        className="relative z-10 -ml-3 mt-7 sm:-ml-4 sm:mt-9"
-        rotate="rotate(7deg)"
+        className="relative z-10 -ml-10 mt-4 origin-bottom scale-[0.82] sm:-ml-8 sm:mt-6 sm:scale-100"
+        rotate="rotate(5deg)"
         remoteSrc="/brand/call-us-man.png"
         remoteName="Jack"
       />

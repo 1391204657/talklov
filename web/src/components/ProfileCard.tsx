@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Profile } from "@/lib/types";
 import ProfilePhoto from "./ProfilePhoto";
+import VoicePlayButton from "./VoicePlayButton";
 
 const intentLabel: Record<string, string> = {
   language: "语伴",
@@ -45,6 +46,7 @@ export default function ProfileCard({ profile }: { profile: Profile }) {
           profile={profile}
           className="aspect-[3/4] w-full"
           rounded="rounded-[1.35rem]"
+          swipeable={false}
         />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 rounded-b-[1.35rem] bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
 
@@ -63,7 +65,7 @@ export default function ProfileCard({ profile }: { profile: Profile }) {
           </span>
         )}
 
-        <div className="absolute inset-x-0 bottom-0 p-2.5 text-white">
+        <div className="absolute inset-x-0 bottom-0 p-2.5 pr-11 text-white">
           <div className="flex items-baseline gap-1.5">
             <span className="text-[15px] font-semibold leading-tight">
               {profile.name}
@@ -90,6 +92,11 @@ export default function ProfileCard({ profile }: { profile: Profile }) {
             ))}
           </div>
         </div>
+
+        <VoicePlayButton
+          profile={profile}
+          className="absolute bottom-2.5 right-2.5"
+        />
       </div>
     </Link>
   );

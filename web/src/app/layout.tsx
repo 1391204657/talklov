@@ -14,8 +14,11 @@ export const metadata: Metadata = {
     title: "TalkLov",
   },
   icons: {
-    icon: "/brand/talklov-logo.png",
-    apple: "/brand/talklov-logo.png",
+    icon: [
+      { url: "/brand/talklov-app-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/brand/talklov-app-icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/brand/talklov-app-icon-180.png", sizes: "180x180", type: "image/png" }],
   },
 };
 
@@ -23,6 +26,9 @@ export const viewport: Viewport = {
   themeColor: "#f7f1f6",
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

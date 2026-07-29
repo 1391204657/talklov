@@ -25,6 +25,8 @@ export interface MyProfile {
   photoPrivacy: PhotoPrivacy;
   /** Once set at onboarding, gender/age/country cannot change in UI. */
   basicsLocked: boolean;
+  /** 5–10s self-intro / hello recording (local data URL until Storage is wired). */
+  voiceIntroUrl: string;
 }
 
 export const defaultMyProfile: MyProfile = {
@@ -47,6 +49,7 @@ export const defaultMyProfile: MyProfile = {
   intents: ["language"],
   photoPrivacy: "public",
   basicsLocked: false,
+  voiceIntroUrl: "",
 };
 
 /** Fields that contribute to the completeness meter (verified is a bonus). */
@@ -59,6 +62,7 @@ const WEIGHTS: { key: keyof MyProfile | "verified"; label: string; w: number }[]
     { key: "city", label: "城市", w: 8 },
     { key: "photos", label: "照片", w: 15 },
     { key: "bio", label: "自我介绍", w: 12 },
+    { key: "voiceIntroUrl", label: "语音介绍", w: 6 },
     { key: "interests", label: "爱好", w: 10 },
     { key: "occupation", label: "职业", w: 6 },
     { key: "education", label: "学历", w: 4 },

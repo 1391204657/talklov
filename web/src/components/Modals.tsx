@@ -17,13 +17,22 @@ import {
   isValidNational,
   maskE164,
 } from "@/lib/phone";
+import { tApp } from "@/lib/appCopy";
+import {
+  privacySections,
+  termsSections,
+  type LegalSection,
+} from "@/lib/legalCopy";
+import type { MarketingLocale } from "@/lib/marketingCopy";
 
 function Sheet({
   children,
   onClose,
+  solid = false,
 }: {
   children: React.ReactNode;
   onClose: () => void;
+  solid?: boolean;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
@@ -32,8 +41,60 @@ function Sheet({
         onClick={onClose}
         aria-hidden
       />
-      <div className="animate-modalIn relative flex max-h-[min(92vh,720px)] w-full max-w-[420px] flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
-        <div className="overflow-y-auto px-5 pb-7 pt-6">{children}</div>
+      <div
+        className={`animate-modalIn relative flex max-h-[min(92vh,720px)] w-full max-w-[420px] flex-col overflow-hidden rounded-3xl border border-line shadow-[0_24px_80px_rgba(0,0,0,0.28)] ${
+          solid ? "bg-white" : "bg-surface"
+        }`}
+        style={solid ? { backgroundColor: "#ffffff" } : undefined}
+      >
+        <div
+          className={`overflow-y-auto overscroll-contain ${
+            solid ? "px-0 pb-0 pt-0" : "px-5 pb-7 pt-6"
+          }`}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LegalInline({
+  title,
+  sections,
+  updated,
+  onBack,
+}: {
+  title: string;
+  sections: LegalSection[];
+  updated: string;
+  onBack: () => void;
+}) {
+  return (
+    <div className="bg-white text-[#2a2433]">
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-black/8 bg-white px-5 py-3.5">
+        <h2 className="min-w-0 truncate text-lg font-bold">{title}</h2>
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Close"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-2xl leading-none text-[#8a8196] transition hover:bg-black/5 hover:text-[#2a2433]"
+        >
+          ×
+        </button>
+      </div>
+      <div className="px-5 pb-8 pt-4">
+        <p className="text-xs text-[#8a8196]">{updated}</p>
+        <div className="mt-5 space-y-5">
+          {sections.map((s) => (
+            <section key={s.h}>
+              <h3 className="text-sm font-bold">{s.h}</h3>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-[#5c5568]">
+                {s.p}
+              </p>
+            </section>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -50,7 +111,9 @@ function RegisterModal() {
     sendPhoneOtp,
     verifyPhoneOtp,
     setLocale,
+    locale,
   } = useApp();
+  const copy = tApp(locale);
   const [step, setStep] = useState(0); // 0 phone, 1 otp, 2 basics, 3 about, 4 photos
   const [draft, setDraft] = useState<MyProfile>({ ...defaultMyProfile });
   const [dial, setDial] = useState<DialCode>("+86");
@@ -61,6 +124,8 @@ function RegisterModal() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authErr, setAuthErr] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
+  const [agreedLegal, setAgreedLegal] = useState(false);
+  const [legalView, setLegalView] = useState<"terms" | "privacy" | null>(null);
 
   useEffect(() => {
     if (!registerOpen) {
@@ -68,6 +133,8 @@ function RegisterModal() {
       setNational("");
       setOtp("");
       setAuthErr(null);
+      setAgreedLegal(false);
+      setLegalView(null);
       setDraft({ ...defaultMyProfile, ...myProfile, phoneE164: myProfile.phoneE164 || "" });
     }
   }, [registerOpen]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -98,6 +165,10 @@ function RegisterModal() {
   };
 
   const sendCode = async () => {
+    if (!agreedLegal) {
+      setAuthErr(copy.agreeRequired);
+      return;
+    }
     setAuthErr(null);
     setAuthBusy(true);
     const res = await sendPhoneOtp(dial, national);
@@ -165,16 +236,44 @@ function RegisterModal() {
     draft.intents.length > 0;
 
   const phoneOk = isValidNational(dial, national);
+  const legalLang = (locale === "en" ? "en" : "zh") as MarketingLocale;
 
   return (
-    <Sheet onClose={closeModals}>
-      {step === 0 && (
+    <Sheet
+      solid={!!legalView}
+      onClose={legalView ? () => setLegalView(null) : closeModals}
+    >
+      {legalView === "terms" && (
+        <LegalInline
+          title={copy.terms}
+          sections={termsSections[legalLang]}
+          updated={
+            legalLang === "zh"
+              ? "更新日期：2026-07-27（演示草案）"
+              : "Updated: 2026-07-27 (draft)"
+          }
+          onBack={() => setLegalView(null)}
+        />
+      )}
+      {legalView === "privacy" && (
+        <LegalInline
+          title={copy.privacy}
+          sections={privacySections[legalLang]}
+          updated={
+            legalLang === "zh"
+              ? "更新日期：2026-07-28（演示草案）"
+              : "Updated: 2026-07-28 (draft)"
+          }
+          onBack={() => setLegalView(null)}
+        />
+      )}
+      {!legalView && step === 0 && (
         <div className="pb-2">
-          <h3 className="text-xl font-bold">手机号验证码登录</h3>
+          <h3 className="text-xl font-bold">{copy.authTitle}</h3>
           <p className="mt-1 text-sm text-muted">
             {pendingAction
-              ? `验证手机号即可${pendingAction}。`
-              : "一个手机号只能注册一个账号，防刷更干净。"}
+              ? copy.authHintAction(pendingAction)
+              : copy.authHint}
           </p>
 
           <div className="mt-5 space-y-3">
@@ -197,29 +296,65 @@ function RegisterModal() {
                 onChange={(e) => setNational(e.target.value)}
                 placeholder={dial === "+86" ? "手机号" : "Phone number"}
                 autoComplete="tel-national"
-                onKeyDown={(e) => e.key === "Enter" && phoneOk && sendCode()}
+                onKeyDown={(e) =>
+                  e.key === "Enter" && phoneOk && agreedLegal && sendCode()
+                }
                 className="min-w-0 flex-1 rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
               />
             </div>
+            <label className="flex items-start gap-2.5 rounded-xl border border-line bg-surface-2/60 px-3 py-3 text-left text-[12px] leading-relaxed text-muted">
+              <input
+                type="checkbox"
+                checked={agreedLegal}
+                onChange={(e) => {
+                  setAgreedLegal(e.target.checked);
+                  if (e.target.checked) setAuthErr(null);
+                }}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--accent)]"
+              />
+              <span>
+                {copy.agreePrefix}{" "}
+                <button
+                  type="button"
+                  className="font-medium text-accent underline-offset-2 hover:underline"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setLegalView("terms");
+                  }}
+                >
+                  {copy.terms}
+                </button>{" "}
+                {copy.agreeAnd}{" "}
+                <button
+                  type="button"
+                  className="font-medium text-accent underline-offset-2 hover:underline"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setLegalView("privacy");
+                  }}
+                >
+                  {copy.privacy}
+                </button>
+              </span>
+            </label>
             {authErr && <p className="text-sm text-danger">{authErr}</p>}
             <button
-              disabled={authBusy || !phoneOk}
+              disabled={authBusy || !phoneOk || !agreedLegal}
               onClick={sendCode}
               className="w-full rounded-xl bg-[#1c1c1f] py-3.5 font-semibold text-white disabled:opacity-40"
             >
-              {authBusy ? "发送中…" : "获取验证码"}
+              {authBusy ? copy.sending : copy.getCode}
             </button>
             <p className="text-center text-[11px] text-muted">
-              邮箱可在注册后于「我的 → 隐私与安全」中绑定（可选）
+              {copy.emailOptional}
             </p>
           </div>
-          <p className="mt-4 text-center text-[11px] text-muted">
-            注册即代表同意《用户协议》与《隐私政策》
-          </p>
         </div>
       )}
 
-      {step === 1 && (
+      {!legalView && step === 1 && (
         <div className="pb-2">
           <h3 className="text-xl font-bold">输入验证码</h3>
           <p className="mt-1 text-sm text-muted">
@@ -271,7 +406,7 @@ function RegisterModal() {
         </div>
       )}
 
-      {step === 2 && (
+      {!legalView && step === 2 && (
         <div className="pb-2">
           <div className="mb-1 text-xs text-muted">资料 1 / 3</div>
           <h3 className="text-xl font-bold">基本信息</h3>
@@ -291,7 +426,7 @@ function RegisterModal() {
         </div>
       )}
 
-      {step === 3 && (
+      {!legalView && step === 3 && (
         <div className="pb-2">
           <div className="mb-1 text-xs text-muted">资料 2 / 3</div>
           <h3 className="text-xl font-bold">关于你</h3>
@@ -318,7 +453,7 @@ function RegisterModal() {
         </div>
       )}
 
-      {step === 4 && (
+      {!legalView && step === 4 && (
         <div className="pb-2">
           <div className="mb-1 text-xs text-muted">资料 3 / 3</div>
           <h3 className="text-xl font-bold">照片</h3>

@@ -17,6 +17,8 @@ interface Props {
 
 export function usePhotoVisible(privacy: Profile["photoPrivacy"]) {
   const { tier } = useApp();
+  // Testing period: always show clear photos so uploaded & mock faces are visible.
+  if (process.env.NEXT_PUBLIC_TEST_SHOW_PHOTOS !== "0") return true;
   if (privacy === "public") return true;
   if (privacy === "loggedIn") return tier === "light" || tier === "verified";
   if (privacy === "verified") return tier === "verified";

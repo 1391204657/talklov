@@ -23,11 +23,11 @@ export default function MarketingHome() {
   const faqs = faqItems[lang].slice(0, 4);
 
   return (
-    <div className="marketing-site min-h-dvh">
+    <div className="marketing-site min-h-dvh overflow-x-hidden">
       <MarketingNav />
 
       {/* Hero */}
-      <section className="relative overflow-hidden">
+      <section className="relative overflow-x-hidden">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -35,8 +35,8 @@ export default function MarketingHome() {
               "radial-gradient(90% 60% at 10% -10%, rgba(244,180,205,0.55), transparent 55%), radial-gradient(70% 50% at 95% 10%, rgba(155,180,245,0.5), transparent 50%), radial-gradient(60% 40% at 50% 100%, rgba(186,220,240,0.35), transparent 45%)",
           }}
         />
-        <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 pb-16 pt-12 sm:px-6 lg:grid-cols-[1fr_1.05fr] lg:gap-6 lg:pb-24 lg:pt-16">
-          <div>
+        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-10 overflow-x-hidden px-4 pb-16 pt-12 sm:px-6 lg:grid-cols-[1fr_1.05fr] lg:gap-6 lg:pb-24 lg:pt-16">
+          <div className="min-w-0">
             <FlagBadge label={t.badge} />
 
             <h1 className="max-w-xl text-4xl font-extrabold leading-[1.15] tracking-tight sm:text-5xl">
@@ -63,7 +63,7 @@ export default function MarketingHome() {
           </div>
 
           {/* Twin FaceTime phones: US man ↔ Chinese woman */}
-          <div className="relative mx-auto w-full lg:max-w-none">
+          <div className="relative mx-auto w-full min-w-0 max-w-full">
             <VideoCallDuo />
           </div>
         </div>

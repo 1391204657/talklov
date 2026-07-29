@@ -13,6 +13,8 @@ import {
   type MyProfile,
 } from "@/lib/profile";
 import { ChineseVariant, Intent } from "@/lib/types";
+import { compressImageFile } from "@/lib/photoUpload";
+import { VoiceIntroRecorder } from "@/components/VoiceIntroRecorder";
 
 const intentOpts: { id: Intent; label: string }[] = [
   { id: "language", label: "语伴" },
@@ -248,6 +250,9 @@ export function ProfileAboutFields({
           className="w-full resize-none rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
         />
       </Field>
+      <Field label="语音打招呼（发现页可播放）">
+        <VoiceIntroRecorder value={value} onChange={onChange} />
+      </Field>
       <Field label="爱好（最多 8 个）">
         <div className="flex flex-wrap gap-2">
           {INTEREST_SUGGESTIONS.map((t) => {
@@ -412,8 +417,13 @@ export function ProfilePhotoFields({
     const urls: string[] = [];
     for (const f of picked) {
       if (!f.type.startsWith("image/")) continue;
-      if (f.size > 4 * 1024 * 1024) continue; // 4MB soft limit
-      urls.push(await readAsDataUrl(f));
+      // Compress so photos fit localStorage and still show on Discover (data: not in DB yet).
+      if (f.size > 12 * 1024 * 1024) continue;
+      try {
+        urls.push(await compressImageFile(f));
+      } catch {
+        /* skip bad files */
+      }
     }
     if (urls.length) onChange({ photos: [...value.photos, ...urls] });
   };
@@ -490,11 +500,3 @@ function Field({
   );
 }
 
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-}

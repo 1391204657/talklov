@@ -43,6 +43,9 @@ export function MarketingNav() {
           <Link href="/terms" className="hover:text-foreground">
             {t.navTerms}
           </Link>
+          <Link href="/privacy" className="hover:text-foreground">
+            {t.navPrivacy}
+          </Link>
           <a href="#download" className="hover:text-foreground">
             {t.navDownload}
           </a>
@@ -116,6 +119,9 @@ export function MarketingFooter() {
           </Link>
           <Link href="/terms" className="hover:text-foreground">
             {t.navTerms}
+          </Link>
+          <Link href="/privacy" className="hover:text-foreground">
+            {t.navPrivacy}
           </Link>
           <a href="#download" className="hover:text-foreground">
             {t.navDownload}

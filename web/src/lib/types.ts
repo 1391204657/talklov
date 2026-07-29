@@ -29,6 +29,10 @@ export interface Profile {
   photoPrivacy: PhotoPrivacy;
   /** Spoken Chinese variants (can be both Mandarin + Cantonese). */
   chineseVariants?: ChineseVariant[];
+  /** Short voice hello / intro (data URL or remote). */
+  voiceIntroUrl?: string;
+  /** Demo / caption text used when no recording exists (TTS fallback). */
+  voiceIntroText?: string;
 }
 
 export interface ChatMessage {
