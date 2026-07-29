@@ -119,14 +119,24 @@ export default function InstallGuide() {
       role="dialog"
       aria-label={title}
     >
-      <div className="mx-auto max-w-md rounded-2xl border border-black/8 bg-white/92 p-4 shadow-[0_-8px_32px_rgba(40,20,60,0.12)] backdrop-blur-sm">
+      <div className="mx-auto max-w-md rounded-2xl border border-black/8 bg-white/85 p-4 shadow-[0_-8px_32px_rgba(40,20,60,0.12)] backdrop-blur-sm">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1c1c1f] text-white">
-            {platform === "ios" ? (
-              <span className="text-base font-bold tracking-tight">···</span>
-            ) : (
-              <span className="text-lg font-bold leading-none">⋮</span>
-            )}
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.45)]">
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5 drop-shadow-[0_0_4px_rgba(251,191,36,0.9)]"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M9 18h6" />
+              <path d="M10 21h4" />
+              <path d="M12 3a6 6 0 0 0-4 10.5V15a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-1.5A6 6 0 0 0 12 3Z" />
+              <path d="M12 9v3" />
+            </svg>
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-[15px] font-bold leading-snug text-foreground">
