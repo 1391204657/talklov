@@ -119,9 +119,9 @@ export default function InstallGuide() {
       role="dialog"
       aria-label={title}
     >
-      <div className="mx-auto max-w-md rounded-2xl border border-white/40 bg-white/[0.08] p-4 shadow-[0_-4px_24px_rgba(40,20,60,0.08)] backdrop-blur-md">
+      <div className="mx-auto max-w-md rounded-2xl border border-black/8 bg-white/92 p-4 shadow-[0_-8px_32px_rgba(40,20,60,0.12)] backdrop-blur-sm">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/50 bg-white/20 text-foreground backdrop-blur-sm">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1c1c1f] text-white">
             {platform === "ios" ? (
               <span className="text-base font-bold tracking-tight">···</span>
             ) : (
@@ -129,10 +129,10 @@ export default function InstallGuide() {
             )}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[15px] font-bold leading-snug text-foreground drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">
+            <p className="text-[15px] font-bold leading-snug text-foreground">
               {title}
             </p>
-            <ol className="mt-2 space-y-1.5 text-[13px] leading-snug text-foreground/80 drop-shadow-[0_1px_1px_rgba(255,255,255,0.7)]">
+            <ol className="mt-2 space-y-1.5 text-[13px] leading-snug text-muted">
               {steps.map((step, i) => (
                 <li key={i} className="flex gap-2">
                   <span className="font-semibold text-foreground">{i + 1}.</span>
@@ -148,7 +148,7 @@ export default function InstallGuide() {
             <button
               type="button"
               onClick={installNative}
-              className="flex-1 rounded-full border border-white/50 bg-white/25 py-2.5 text-sm font-semibold text-foreground backdrop-blur-sm"
+              className="flex-1 rounded-full bg-[#1c1c1f] py-2.5 text-sm font-semibold text-white"
             >
               {t.installBtn}
             </button>
@@ -156,7 +156,7 @@ export default function InstallGuide() {
             <button
               type="button"
               onClick={() => dismiss(true)}
-              className="flex-1 rounded-full border border-white/50 bg-white/25 py-2.5 text-sm font-semibold text-foreground backdrop-blur-sm"
+              className="flex-1 rounded-full bg-[#1c1c1f] py-2.5 text-sm font-semibold text-white"
             >
               {t.dismiss}
             </button>
@@ -164,7 +164,7 @@ export default function InstallGuide() {
           <button
             type="button"
             onClick={() => dismiss(true)}
-            className="rounded-full border border-white/40 bg-white/10 px-4 py-2.5 text-sm font-semibold text-foreground/70 backdrop-blur-sm"
+            className="rounded-full border border-line bg-white/80 px-4 py-2.5 text-sm font-semibold text-muted"
           >
             {t.later}
           </button>
