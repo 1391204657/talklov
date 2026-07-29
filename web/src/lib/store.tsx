@@ -138,7 +138,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const s = JSON.parse(raw);
-        setTier(s.tier ?? "guest");
+        const phone = (s.myProfile?.phoneE164 as string | undefined) ?? "";
+        const savedTier = (s.tier as Tier | undefined) ?? "guest";
+        // Phone login should never stay stuck as guest after refresh
+        const nextTier =
+          savedTier === "verified"
+            ? "verified"
+            : savedTier === "light" || phone
+              ? "light"
+              : "guest";
+        setTier(nextTier);
         setRegion(s.region ?? "global");
         setInstalled(s.installed ?? false);
         setTheme(s.theme ?? "light");
@@ -147,7 +156,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ...defaultMyProfile,
           ...(s.myProfile ?? {}),
           chineseVariants: s.myProfile?.chineseVariants ?? [],
-          phoneE164: s.myProfile?.phoneE164 ?? "",
+          phoneE164: phone,
           voiceIntroUrl: s.myProfile?.voiceIntroUrl ?? "",
         });
       }

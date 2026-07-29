@@ -111,10 +111,17 @@ export default function Me() {
   } = useApp();
 
   const c = tApp(locale);
-  const tierMeta =
+  // If session/phone exists but local tier lagged as guest, treat as logged-in
+  const effectiveTier =
     tier === "verified"
+      ? "verified"
+      : tier === "light" || !!userId || !!myProfile.phoneE164
+        ? "light"
+        : "guest";
+  const tierMeta =
+    effectiveTier === "verified"
       ? { label: c.tierVerified, color: "text-success" }
-      : tier === "light"
+      : effectiveTier === "light"
         ? { label: c.tierLight, color: "text-accent-2" }
         : { label: c.tierGuest, color: "text-muted" };
   const avatar = myProfile.photos[0];
@@ -189,7 +196,7 @@ export default function Me() {
                 <span className="text-lg font-semibold">
                   {myProfile.name || c.guestUser}
                 </span>
-                {tier === "verified" && (
+                {effectiveTier === "verified" && (
                   <span className="rounded-full bg-accent-2/15 px-2 py-0.5 text-[11px] font-medium text-accent-2">
                     ✓
                   </span>
@@ -201,16 +208,17 @@ export default function Me() {
             </div>
           </div>
 
-          {tier !== "guest" && (
+          {effectiveTier !== "guest" && (
             <div className="mt-4">
               <CompletenessBar
                 profile={myProfile}
-                verified={tier === "verified"}
+                verified={effectiveTier === "verified"}
               />
             </div>
           )}
 
-          {tier === "guest" && (
+          {/* Guest → register; logged-in → verify; verified → no CTA */}
+          {effectiveTier === "guest" && (
             <button
               onClick={() => openRegister()}
               className="btn-grad mt-4 w-full rounded-xl py-2.5 text-sm font-semibold"
@@ -218,17 +226,17 @@ export default function Me() {
               {c.registerLogin}
             </button>
           )}
+          {effectiveTier === "light" && (
+            <button
+              onClick={() => openVerify()}
+              className="btn-grad mt-4 w-full rounded-xl py-2.5 text-sm font-semibold"
+            >
+              {c.goVerify}
+            </button>
+          )}
 
-          {tier !== "guest" && (
+          {effectiveTier !== "guest" && (
             <div className="mt-3 grid grid-cols-2 gap-2">
-              {tier === "light" && (
-                <button
-                  onClick={() => openVerify()}
-                  className="col-span-2 rounded-xl border border-success/40 bg-success/10 py-2.5 text-sm font-semibold text-success"
-                >
-                  🛡️ {locale === "en" ? "Verify selfie" : "真人认证"}
-                </button>
-              )}
               <Link
                 href={userId ? `/profile/${userId}` : "/profile/me"}
                 className="rounded-xl border border-line py-2.5 text-center text-sm font-medium"
