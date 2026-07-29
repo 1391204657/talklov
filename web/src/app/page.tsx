@@ -46,19 +46,13 @@ export default function MarketingHome() {
               {t.heroSub}
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="mt-8">
               <Link
                 href="/discover"
-                className="inline-flex items-center justify-center rounded-full bg-[#1c1c1f] px-7 py-3.5 text-base font-semibold text-white shadow-[0_12px_32px_rgba(0,0,0,0.22)]"
+                className="inline-flex items-center justify-center rounded-full bg-[#1c1c1f] px-8 py-3.5 text-base font-semibold text-white shadow-[0_12px_32px_rgba(0,0,0,0.22)]"
               >
                 {t.ctaBrowse}
               </Link>
-              <a
-                href="#download"
-                className="inline-flex items-center justify-center rounded-full border border-line bg-surface/80 px-7 py-3.5 text-base font-semibold backdrop-blur"
-              >
-                {t.ctaDownload}
-              </a>
             </div>
           </div>
 
