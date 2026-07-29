@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { useApp } from "@/lib/store";
 
-type Platform = "ios" | "android" | null;
+type Platform = "ios" | "android" | "wechat" | null;
 
 function detectPlatform(): Platform {
   if (typeof window === "undefined") return null;
   const ua = navigator.userAgent || "";
+  // WeChat in-app browser (common in China) — must open in system browser first
+  if (/MicroMessenger/i.test(ua)) return "wechat";
   if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
   if (/Android/i.test(ua)) return "android";
   return null;
@@ -35,9 +37,15 @@ const copy = {
     ],
     androidTitle: "添加到主屏幕，像 App 一样用",
     androidSteps: [
-      "点击浏览器右上角的「···」或「⋮」",
-      "选择「添加到主屏幕」或「安装应用」",
+      "点浏览器菜单「···」或「⋮」（位置因浏览器而异，多在右上角）",
+      "找「添加到主屏幕 / 添加到桌面 / 安装应用 / 收藏到桌面」任一选项",
       "确认后，即可在主屏幕找到 TalkLov 图标",
+    ],
+    wechatTitle: "请先用浏览器打开，再添加到主屏幕",
+    wechatSteps: [
+      "点微信右上角「···」",
+      "选择「在浏览器打开」（系统浏览器 / Chrome / 夸克等均可）",
+      "在浏览器里再按提示「添加到主屏幕」，即可找到 TalkLov 图标",
     ],
     installBtn: "一键安装",
     dismiss: "知道了",
@@ -52,9 +60,15 @@ const copy = {
     ],
     androidTitle: "Add to Home Screen — use it like an app",
     androidSteps: [
-      "Tap ··· or ⋮ at the top-right of your browser",
-      "Choose “Add to Home screen” or “Install app”",
+      "Tap ··· or ⋮ in your browser menu (usually top-right)",
+      "Choose “Add to Home screen”, “Install app”, or similar",
       "Confirm — then find the TalkLov icon on your Home Screen",
+    ],
+    wechatTitle: "Open in a browser first, then add to Home Screen",
+    wechatSteps: [
+      "Tap ··· at the top-right in WeChat",
+      "Choose “Open in browser”",
+      "In the browser, add TalkLov to your Home Screen",
     ],
     installBtn: "Install",
     dismiss: "Got it",
@@ -110,8 +124,18 @@ export default function InstallGuide() {
 
   if (!visible || !platform) return null;
 
-  const title = platform === "ios" ? t.iosTitle : t.androidTitle;
-  const steps = platform === "ios" ? t.iosSteps : t.androidSteps;
+  const title =
+    platform === "ios"
+      ? t.iosTitle
+      : platform === "wechat"
+        ? t.wechatTitle
+        : t.androidTitle;
+  const steps =
+    platform === "ios"
+      ? t.iosSteps
+      : platform === "wechat"
+        ? t.wechatSteps
+        : t.androidSteps;
 
   return (
     <div
