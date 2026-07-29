@@ -29,15 +29,15 @@ const copy = {
   zh: {
     iosTitle: "添加到主屏幕，像 App 一样用",
     iosSteps: [
-      "点 Safari 底栏的「分享」按钮（有的机型显示为「共享」）",
-      "上滑菜单，找到并点「添加到主屏幕」",
-      "再点右上角「添加」即可",
+      "点击当前右下角的「···」",
+      "点击「分享」（有的机型显示为「共享」）",
+      "选择「添加到主屏幕」并确认，即可在主屏幕找到 TalkLov 图标",
     ],
     androidTitle: "添加到主屏幕，像 App 一样用",
     androidSteps: [
-      "点浏览器右上角「⋮」菜单",
+      "点击浏览器右上角的「···」或「⋮」",
       "选择「添加到主屏幕」或「安装应用」",
-      "确认后，主屏幕会出现 TalkLov 图标",
+      "确认后，即可在主屏幕找到 TalkLov 图标",
     ],
     installBtn: "一键安装",
     dismiss: "知道了",
@@ -46,15 +46,15 @@ const copy = {
   en: {
     iosTitle: "Add to Home Screen — use it like an app",
     iosSteps: [
-      "Tap the Share button in Safari’s toolbar (square with an arrow)",
-      "Scroll and tap “Add to Home Screen”",
-      "Tap “Add” in the top-right corner",
+      "Tap the ··· button at the bottom-right",
+      "Tap Share",
+      "Choose “Add to Home Screen” — then find the TalkLov icon on your Home Screen",
     ],
     androidTitle: "Add to Home Screen — use it like an app",
     androidSteps: [
-      "Tap the ⋮ menu in your browser",
+      "Tap ··· or ⋮ at the top-right of your browser",
       "Choose “Add to Home screen” or “Install app”",
-      "Confirm — TalkLov will appear on your home screen",
+      "Confirm — then find the TalkLov icon on your Home Screen",
     ],
     installBtn: "Install",
     dismiss: "Got it",
@@ -119,22 +119,20 @@ export default function InstallGuide() {
       role="dialog"
       aria-label={title}
     >
-      <div className="mx-auto max-w-md rounded-2xl border border-line bg-background/95 p-4 shadow-[0_-8px_40px_rgba(40,20,60,0.18)] backdrop-blur-xl">
+      <div className="mx-auto max-w-md rounded-2xl border border-white/40 bg-white/[0.08] p-4 shadow-[0_-4px_24px_rgba(40,20,60,0.08)] backdrop-blur-md">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1c1c1f] text-white">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/50 bg-white/20 text-foreground backdrop-blur-sm">
             {platform === "ios" ? (
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 3v12" strokeLinecap="round" />
-                <path d="M8 7l4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" strokeLinecap="round" />
-              </svg>
+              <span className="text-base font-bold tracking-tight">···</span>
             ) : (
               <span className="text-lg font-bold leading-none">⋮</span>
             )}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[15px] font-bold leading-snug">{title}</p>
-            <ol className="mt-2 space-y-1.5 text-[13px] leading-snug text-muted">
+            <p className="text-[15px] font-bold leading-snug text-foreground drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">
+              {title}
+            </p>
+            <ol className="mt-2 space-y-1.5 text-[13px] leading-snug text-foreground/80 drop-shadow-[0_1px_1px_rgba(255,255,255,0.7)]">
               {steps.map((step, i) => (
                 <li key={i} className="flex gap-2">
                   <span className="font-semibold text-foreground">{i + 1}.</span>
@@ -150,7 +148,7 @@ export default function InstallGuide() {
             <button
               type="button"
               onClick={installNative}
-              className="flex-1 rounded-full bg-[#1c1c1f] py-2.5 text-sm font-semibold text-white"
+              className="flex-1 rounded-full border border-white/50 bg-white/25 py-2.5 text-sm font-semibold text-foreground backdrop-blur-sm"
             >
               {t.installBtn}
             </button>
@@ -158,7 +156,7 @@ export default function InstallGuide() {
             <button
               type="button"
               onClick={() => dismiss(true)}
-              className="flex-1 rounded-full bg-[#1c1c1f] py-2.5 text-sm font-semibold text-white"
+              className="flex-1 rounded-full border border-white/50 bg-white/25 py-2.5 text-sm font-semibold text-foreground backdrop-blur-sm"
             >
               {t.dismiss}
             </button>
@@ -166,7 +164,7 @@ export default function InstallGuide() {
           <button
             type="button"
             onClick={() => dismiss(true)}
-            className="rounded-full border border-line px-4 py-2.5 text-sm font-semibold text-muted"
+            className="rounded-full border border-white/40 bg-white/10 px-4 py-2.5 text-sm font-semibold text-foreground/70 backdrop-blur-sm"
           >
             {t.later}
           </button>
