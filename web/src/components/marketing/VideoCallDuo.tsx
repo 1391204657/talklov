@@ -20,17 +20,17 @@ function HangUpOnly() {
 function FaceTimePhone({
   remoteSrc,
   remoteName,
-  rotate,
+  transform,
   className = "",
 }: {
   remoteSrc: string;
   remoteName: string;
-  rotate: string;
+  transform: string;
   className?: string;
 }) {
   return (
-    <div className={`relative ${className}`} style={{ transform: rotate }}>
-      <div className="relative w-[200px] rounded-[2rem] border border-black/15 bg-[#1c1c1f] p-[7px] shadow-[0_28px_70px_rgba(60,40,80,0.32)] sm:w-[220px]">
+    <div className={`relative ${className}`} style={{ transform }}>
+      <div className="relative w-[168px] rounded-[2rem] border border-black/15 bg-[#1c1c1f] p-[7px] shadow-[0_28px_70px_rgba(60,40,80,0.32)] sm:w-[220px]">
         <div className="absolute left-1/2 top-2.5 z-30 h-4 w-20 -translate-x-1/2 rounded-full bg-black/85" />
         <div className="relative aspect-[9/19] overflow-hidden rounded-[1.55rem] bg-black">
           <Image
@@ -48,24 +48,26 @@ function FaceTimePhone({
   );
 }
 
-/** Two FaceTime-style phones with slight overlap — woman in front. */
+/** Two FaceTime-style phones with slight overlap — woman in front (all breakpoints). */
 export function VideoCallDuo() {
   return (
-    <div className="relative mx-auto flex w-full max-w-[420px] items-end justify-center px-2 sm:max-w-[480px]">
+    <div className="relative mx-auto h-[360px] w-full max-w-[320px] sm:h-[460px] sm:max-w-[440px]">
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-44 w-44 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(232,137,176,0.4),transparent_70%)] blur-2xl" />
 
+      {/* Man — behind, right */}
       <FaceTimePhone
-        className="relative z-20 origin-bottom scale-[0.82] sm:scale-100"
-        rotate="rotate(-5deg)"
-        remoteSrc="/brand/call-cn-woman.png"
-        remoteName="林晓 Lin"
-      />
-
-      <FaceTimePhone
-        className="relative z-10 -ml-10 mt-4 origin-bottom scale-[0.82] sm:-ml-8 sm:mt-6 sm:scale-100"
-        rotate="rotate(5deg)"
+        className="absolute left-[42%] top-8 z-10 origin-bottom sm:left-[40%] sm:top-10"
+        transform="rotate(6deg)"
         remoteSrc="/brand/call-us-man.png"
         remoteName="Jack"
+      />
+
+      {/* Woman — in front, left, slight overlap */}
+      <FaceTimePhone
+        className="absolute left-[2%] top-0 z-20 origin-bottom sm:left-[4%] sm:top-2"
+        transform="rotate(-6deg)"
+        remoteSrc="/brand/call-cn-woman.png"
+        remoteName="林晓 Lin"
       />
     </div>
   );
