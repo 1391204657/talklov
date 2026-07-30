@@ -13,6 +13,7 @@ import ImageLightbox from "@/components/ImageLightbox";
 import { compressImageFile } from "@/lib/photoUpload";
 import { useCallOptional } from "@/components/calls/CallProvider";
 import { moderateContent } from "@/lib/moderation/client";
+import { scanSafetyTip, safetyTipCopy, type SafetyHit } from "@/lib/safetyTip";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   resolveConversation,
@@ -31,14 +32,16 @@ import {
   markActiveChatPartner,
 } from "@/lib/localInbox";
 
-const SCAM_PATTERNS = [
-  "转账", "汇款", "打钱", "投资", "比特币", "bitcoin", "wire", "money",
-  "加我微信", "加微信", "whatsapp", "telegram", "验证码", "银行卡",
+const SCAM_HARD_BLOCK = [
+  "验证码发给我",
+  "把验证码",
+  "把密码告诉我",
+  "银行卡号发给",
 ];
 
-function scanScam(text: string) {
+function scanHardScam(text: string) {
   const lower = text.toLowerCase();
-  return SCAM_PATTERNS.some((p) => lower.includes(p.toLowerCase()));
+  return SCAM_HARD_BLOCK.some((p) => lower.includes(p.toLowerCase()));
 }
 
 function speak(text: string) {
@@ -77,6 +80,10 @@ export default function Chat() {
   const [autoTranslate, setAutoTranslate] = useState(true);
   const [showSafety, setShowSafety] = useState(true);
   const [scamWarn, setScamWarn] = useState(false);
+  const [safetyTip, setSafetyTip] = useState<{
+    hit: SafetyHit;
+    text: string;
+  } | null>(null);
   // AI
   const [aiBusy, setAiBusy] = useState<string | null>(null);
   const [icebreakers, setIcebreakers] = useState<string[] | null>(null);
@@ -324,13 +331,7 @@ export default function Chat() {
     }
   };
 
-  const send = async () => {
-    const text = input.trim();
-    if (!text) return;
-    if (scanScam(text)) {
-      setScamWarn(true);
-      return;
-    }
+  const deliverText = async (text: string) => {
     const mod = await moderateContent({ text });
     if (!mod.allowed) {
       alert(mod.reason || "内容未通过安全审核，无法发送。");
@@ -356,10 +357,28 @@ export default function Chat() {
     setInput("");
     setPolish(null);
     setIcebreakers(null);
+    setSafetyTip(null);
 
     if (isAiPersona(params.id)) {
       requestAiReply(text);
     }
+  };
+
+  const send = async (opts?: { bypassSafety?: boolean }) => {
+    const text = input.trim();
+    if (!text) return;
+    if (scanHardScam(text)) {
+      setScamWarn(true);
+      return;
+    }
+    if (!opts?.bypassSafety) {
+      const hit = scanSafetyTip(text);
+      if (hit) {
+        setSafetyTip({ hit, text });
+        return;
+      }
+    }
+    await deliverText(text);
   };
 
   const requestAiReply = async (lastUserText: string) => {
@@ -1108,14 +1127,14 @@ export default function Chat() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
+            onKeyDown={(e) => e.key === "Enter" && void send()}
             placeholder="说点什么…"
             className="min-w-0 flex-1 rounded-full border border-line bg-surface-2 px-3 py-2 outline-none focus:border-accent"
           />
         )}
         {!voiceDraft && (
           <button
-            onClick={send}
+            onClick={() => void send()}
             disabled={recording || mediaBusy}
             className="btn-grad h-10 w-10 shrink-0 rounded-full text-lg font-bold disabled:opacity-40"
           >
@@ -1129,6 +1148,70 @@ export default function Chat() {
         <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
       )}
 
+      {safetyTip && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setSafetyTip(null)}
+            aria-hidden
+          />
+          <div className="animate-fadeUp relative w-full max-w-md rounded-t-3xl border border-line bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-3xl">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-warn/15 text-warn">
+              <svg
+                viewBox="0 0 48 48"
+                className="h-7 w-7"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M24 4 2 42h44L24 4Z" />
+                <path d="M24 18v10" />
+                <circle cx="24" cy="34" r="1.5" fill="currentColor" stroke="none" />
+              </svg>
+            </div>
+            <h3 className="text-center text-lg font-bold">
+              {safetyTipCopy(safetyTip.hit).title}
+            </h3>
+            <p className="mt-2 text-center text-sm leading-relaxed text-muted">
+              {safetyTipCopy(safetyTip.hit).body}
+            </p>
+            {safetyTip.hit.labels.length > 0 && (
+              <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+                {safetyTip.hit.labels.map((l) => (
+                  <span
+                    key={l}
+                    className="rounded-full bg-warn/10 px-2.5 py-0.5 text-[11px] font-medium text-warn"
+                  >
+                    {l}
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="mt-3 rounded-xl bg-surface-2 px-3 py-2 text-center text-[12px] text-muted">
+              TalkLov 不会要求你转账或投资。保护好自己的钱和隐私。
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => setSafetyTip(null)}
+                className="btn-grad w-full rounded-xl py-3 text-sm font-semibold"
+              >
+                返回修改
+              </button>
+              <button
+                type="button"
+                onClick={() => void send({ bypassSafety: true })}
+                className="w-full rounded-xl border border-line py-3 text-sm text-muted"
+              >
+                我了解风险，仍要发送
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {scamWarn && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
           <div
@@ -1138,11 +1221,10 @@ export default function Chat() {
           <div className="animate-fadeUp relative w-full max-w-sm rounded-2xl border border-danger/40 bg-surface p-5 text-center">
             <svg viewBox="0 0 48 48" className="mx-auto h-10 w-10 text-danger" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M24 4 2 42h44L24 4Z" /><path d="M24 18v10" /><circle cx="24" cy="34" r="1.5" fill="currentColor" stroke="none" /></svg>
             <h3 className="mt-2 text-lg font-bold text-danger">
-              检测到高风险内容
+              已拦截高风险内容
             </h3>
             <p className="mt-1 text-sm text-muted">
-              你的消息包含涉及金钱/转账的敏感词。为保护你，我们拦截了这条消息。
-              涉及钱财的请求几乎都是诈骗。
+              索要验证码或密码的消息已被拦截。任何要你交出账号验证码的人都可能是骗子。
             </p>
             <div className="mt-4 flex gap-2">
               <button
@@ -1158,7 +1240,7 @@ export default function Chat() {
                 }}
                 className="flex-1 rounded-xl bg-danger/90 py-2.5 text-sm text-white"
               >
-                举报对方
+                清空并关闭
               </button>
             </div>
           </div>
