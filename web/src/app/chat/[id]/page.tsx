@@ -9,6 +9,7 @@ import { useProfile } from "@/lib/useProfiles";
 import { takeOpener } from "@/lib/openers";
 import { consumeOpenerDraft } from "@/lib/datingSim";
 import { isAiPersona, takeAiWelcomeReply } from "@/lib/aiPersonas";
+import { compressImageFile } from "@/lib/photoUpload";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   resolveConversation,
@@ -84,12 +85,16 @@ export default function Chat() {
   const [recording, setRecording] = useState(false);
   const [recSecs, setRecSecs] = useState(0);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [mediaBusy, setMediaBusy] = useState(false);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const recSecsRef = useRef(0);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
 
   function pickRecorderMime(): string | undefined {
     if (typeof MediaRecorder === "undefined") return undefined;
@@ -521,6 +526,70 @@ export default function Chat() {
     }
   };
 
+  const sendMediaMessage = (kind: "image" | "video", mediaUrl: string) => {
+    const userMsg: ChatMessage = {
+      id: `m${Date.now()}`,
+      fromMe: true,
+      kind,
+      text: kind === "image" ? "[图片]" : "[视频]",
+      mediaUrl,
+      time: "刚刚",
+    };
+    setMessages((m) => [...m, userMsg]);
+    if (profile && isAiPersona(profile.id)) {
+      upsertLocalConvo({
+        otherId: profile.id,
+        name: profile.name,
+        photo: profile.photo,
+        preview: kind === "image" ? "[图片]" : "[视频]",
+        unread: 0,
+      });
+    }
+  };
+
+  const onPickImages = async (files: FileList | null) => {
+    setAttachOpen(false);
+    if (!files?.length) return;
+    setMediaBusy(true);
+    try {
+      for (const file of Array.from(files).slice(0, 9)) {
+        if (!file.type.startsWith("image/")) continue;
+        try {
+          const url = await compressImageFile(file);
+          sendMediaMessage("image", url);
+        } catch {
+          /* skip */
+        }
+      }
+    } finally {
+      setMediaBusy(false);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  };
+
+  const onPickVideos = async (files: FileList | null) => {
+    setAttachOpen(false);
+    if (!files?.length) return;
+    const file = files[0];
+    if (!file?.type.startsWith("video/")) {
+      alert("请选择视频文件。");
+      return;
+    }
+    // Soft limit for demo / local storage friendliness
+    if (file.size > 40 * 1024 * 1024) {
+      alert("视频请控制在 40MB 以内（演示版）。");
+      return;
+    }
+    setMediaBusy(true);
+    try {
+      const url = URL.createObjectURL(file);
+      sendMediaMessage("video", url);
+    } finally {
+      setMediaBusy(false);
+      if (videoInputRef.current) videoInputRef.current.value = "";
+    }
+  };
+
   return (
     <main className="flex min-h-0 flex-1 flex-col">
       <header className="sticky top-0 z-20 flex shrink-0 items-center gap-2.5 border-b border-line bg-surface/95 px-3 py-2 backdrop-blur">
@@ -591,7 +660,35 @@ export default function Chat() {
             className={`flex ${m.fromMe ? "justify-end" : "justify-start"}`}
           >
             <div className="max-w-[78%]">
-              {m.kind === "voice" ? (
+              {m.kind === "image" && m.mediaUrl ? (
+                <button
+                  type="button"
+                  onClick={() => window.open(m.mediaUrl, "_blank")}
+                  className={`overflow-hidden rounded-2xl ${
+                    m.fromMe ? "rounded-br-md" : "rounded-bl-md"
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={m.mediaUrl}
+                    alt="图片"
+                    className="max-h-64 max-w-full object-cover"
+                  />
+                </button>
+              ) : m.kind === "video" && m.mediaUrl ? (
+                <div
+                  className={`overflow-hidden rounded-2xl ${
+                    m.fromMe ? "rounded-br-md" : "rounded-bl-md"
+                  }`}
+                >
+                  <video
+                    src={m.mediaUrl}
+                    controls
+                    playsInline
+                    className="max-h-64 max-w-full bg-black"
+                  />
+                </div>
+              ) : m.kind === "voice" ? (
                 <button
                   type="button"
                   onClick={() => playAudio(m.id, m.audioUrl)}
@@ -648,10 +745,10 @@ export default function Chat() {
                     <svg viewBox="0 0 16 16" className="mr-0.5 inline h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="6.5" /><path d="M1.5 8h13M8 1.5a10 10 0 0 1 2.5 6.5 10 10 0 0 1-2.5 6.5 10 10 0 0 1-2.5-6.5A10 10 0 0 1 8 1.5Z" /></svg>{showTrans[m.id] ? "隐藏翻译" : "翻译"}
                   </button>
                 )}
-                {m.kind !== "voice" && (
+                {m.kind !== "voice" && m.kind !== "image" && m.kind !== "video" && (
                   <button onClick={() => speak(m.text)}><svg viewBox="0 0 16 16" className="mr-0.5 inline h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h2l4-3v10L5 10H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z" /><path d="M11 5.5a3.5 3.5 0 0 1 0 5" /></svg>朗读</button>
                 )}
-                {!m.fromMe && m.kind !== "voice" && <button><svg viewBox="0 0 16 16" className="mr-0.5 inline h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2.5l3.5 3.5L5 14.5H1.5V11L10 2.5Z" /></svg>纠错</button>}
+                {!m.fromMe && m.kind !== "voice" && m.kind !== "image" && m.kind !== "video" && <button><svg viewBox="0 0 16 16" className="mr-0.5 inline h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2.5l3.5 3.5L5 14.5H1.5V11L10 2.5Z" /></svg>纠错</button>}
                 <span>{m.time}</span>
               </div>
             </div>
@@ -760,9 +857,11 @@ export default function Chat() {
         </button>
       </div>
 
-      <div className="flex items-center gap-2 px-3 pb-3 pt-1">
+      <div className="relative flex items-center gap-2 px-3 pb-3 pt-1">
         <button
+          type="button"
           onClick={recording ? stopRecording : startRecording}
+          disabled={mediaBusy}
           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg ${
             recording ? "bg-danger text-white" : "bg-surface-2 text-muted"
           }`}
@@ -770,6 +869,71 @@ export default function Chat() {
         >
           {recording ? "■" : <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2" width="6" height="10" rx="3" /><path d="M4 9a6 6 0 0 0 12 0" /><path d="M10 15v3" /><path d="M7 18h6" /></svg>}
         </button>
+
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            disabled={recording || mediaBusy}
+            onClick={() => setAttachOpen((v) => !v)}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-2 text-xl font-light text-muted disabled:opacity-40"
+            title="发送照片或视频"
+            aria-label="添加照片或视频"
+          >
+            {mediaBusy ? "…" : "+"}
+          </button>
+          {attachOpen && (
+            <>
+              <button
+                type="button"
+                className="fixed inset-0 z-30 cursor-default"
+                aria-label="关闭"
+                onClick={() => setAttachOpen(false)}
+              />
+              <div className="absolute bottom-[3.25rem] left-0 z-40 w-40 overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_12px_40px_rgba(40,20,60,0.18)]">
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="flex w-full items-center gap-2 px-3 py-3 text-left text-sm active:bg-surface-2"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 text-muted" fill="none" stroke="currentColor" strokeWidth="1.6">
+                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                    <circle cx="8.5" cy="10" r="1.5" />
+                    <path d="m21 15-4.5-4.5L9 18" />
+                  </svg>
+                  照片
+                </button>
+                <button
+                  type="button"
+                  onClick={() => videoInputRef.current?.click()}
+                  className="flex w-full items-center gap-2 border-t border-line px-3 py-3 text-left text-sm active:bg-surface-2"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 text-muted" fill="none" stroke="currentColor" strokeWidth="1.6">
+                    <rect x="3" y="6" width="13" height="12" rx="2" />
+                    <path d="m16 10 5-3v10l-5-3" />
+                  </svg>
+                  视频
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => onPickImages(e.target.files)}
+        />
+        <input
+          ref={videoInputRef}
+          type="file"
+          accept="video/*"
+          className="hidden"
+          onChange={(e) => onPickVideos(e.target.files)}
+        />
+
         {recording ? (
           <div className="flex flex-1 items-center gap-2 rounded-full bg-danger/10 px-4 py-2.5 text-sm text-danger">
             <span className="h-2 w-2 animate-pulse rounded-full bg-danger" />
@@ -786,7 +950,7 @@ export default function Chat() {
         )}
         <button
           onClick={send}
-          disabled={recording}
+          disabled={recording || mediaBusy}
           className="btn-grad h-11 w-11 shrink-0 rounded-full text-lg font-bold disabled:opacity-40"
         >
           ↑

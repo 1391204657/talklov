@@ -38,10 +38,12 @@ export interface Profile {
 export interface ChatMessage {
   id: string;
   fromMe: boolean;
-  kind?: "text" | "voice";
+  kind?: "text" | "voice" | "image" | "video";
   text: string;
   translation?: string;
   audioUrl?: string;
+  /** Image / video preview URL (data URL or blob URL). */
+  mediaUrl?: string;
   durationSec?: number;
   time: string;
   flagged?: boolean;
