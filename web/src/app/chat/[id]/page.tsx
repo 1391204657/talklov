@@ -9,6 +9,7 @@ import { useProfile } from "@/lib/useProfiles";
 import { takeOpener } from "@/lib/openers";
 import { consumeOpenerDraft } from "@/lib/datingSim";
 import { isAiPersona, takeAiWelcomeReply } from "@/lib/aiPersonas";
+import ImageLightbox from "@/components/ImageLightbox";
 import { compressImageFile } from "@/lib/photoUpload";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
@@ -88,6 +89,12 @@ export default function Chat() {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [attachOpen, setAttachOpen] = useState(false);
   const [mediaBusy, setMediaBusy] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [voiceDraft, setVoiceDraft] = useState<{
+    url: string;
+    secs: number;
+  } | null>(null);
+  const [draftPlaying, setDraftPlaying] = useState(false);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -449,38 +456,18 @@ export default function Chat() {
           try {
             // data URL plays more reliably than blob: on iOS Safari / PWA
             const url = await blobToDataUrl(blob);
-            setMessages((m) => [
-              ...m,
-              {
-                id: `v${Date.now()}`,
-                fromMe: true,
-                kind: "voice",
-                text: "[语音消息]",
-                audioUrl: url,
-                durationSec: secs,
-                time: "刚刚",
-              },
-            ]);
+            setVoiceDraft({ url, secs });
           } catch {
             const url = URL.createObjectURL(blob);
-            setMessages((m) => [
-              ...m,
-              {
-                id: `v${Date.now()}`,
-                fromMe: true,
-                kind: "voice",
-                text: "[语音消息]",
-                audioUrl: url,
-                durationSec: secs,
-                time: "刚刚",
-              },
-            ]);
+            setVoiceDraft({ url, secs });
           }
         })();
       };
       recRef.current = mr;
       mr.start(250);
       setRecording(true);
+      setVoiceDraft(null);
+      setDraftPlaying(false);
       setRecSecs(0);
       recSecsRef.current = 0;
       recTimer.current = setInterval(() => {
@@ -498,6 +485,72 @@ export default function Chat() {
     }
     setRecording(false);
     if (recTimer.current) clearInterval(recTimer.current);
+  };
+
+  const discardVoiceDraft = () => {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+    setDraftPlaying(false);
+    setVoiceDraft(null);
+  };
+
+  const previewVoiceDraft = async () => {
+    if (!voiceDraft?.url) return;
+    try {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
+      }
+      if (draftPlaying) {
+        setDraftPlaying(false);
+        return;
+      }
+      const audio = new Audio(voiceDraft.url);
+      audioPlayerRef.current = audio;
+      setDraftPlaying(true);
+      audio.onended = () => setDraftPlaying(false);
+      audio.onerror = () => {
+        setDraftPlaying(false);
+        alert("试听失败，请重录。");
+      };
+      await audio.play();
+    } catch {
+      setDraftPlaying(false);
+      alert("试听被拦截，请再点一次。");
+    }
+  };
+
+  const sendVoiceDraft = () => {
+    if (!voiceDraft) return;
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+    setDraftPlaying(false);
+    setMessages((m) => [
+      ...m,
+      {
+        id: `v${Date.now()}`,
+        fromMe: true,
+        kind: "voice",
+        text: "[语音消息]",
+        audioUrl: voiceDraft.url,
+        durationSec: voiceDraft.secs,
+        time: "刚刚",
+      },
+    ]);
+    if (profile && isAiPersona(profile.id)) {
+      upsertLocalConvo({
+        otherId: profile.id,
+        name: profile.name,
+        photo: profile.photo,
+        preview: "[语音]",
+        unread: 0,
+      });
+    }
+    setVoiceDraft(null);
   };
 
   const playAudio = async (id: string, url?: string) => {
@@ -666,7 +719,7 @@ export default function Chat() {
               {m.kind === "image" && m.mediaUrl ? (
                 <button
                   type="button"
-                  onClick={() => window.open(m.mediaUrl, "_blank")}
+                  onClick={() => setLightboxSrc(m.mediaUrl!)}
                   className={`overflow-hidden rounded-2xl ${
                     m.fromMe ? "rounded-br-md" : "rounded-bl-md"
                   }`}
@@ -863,12 +916,27 @@ export default function Chat() {
       <div className="relative flex min-w-0 items-center gap-1.5 px-2.5 pb-3 pt-1">
         <button
           type="button"
-          onClick={recording ? stopRecording : startRecording}
+          onClick={
+            recording
+              ? stopRecording
+              : voiceDraft
+                ? () => {
+                    discardVoiceDraft();
+                    void startRecording();
+                  }
+                : startRecording
+          }
           disabled={mediaBusy}
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg ${
             recording ? "bg-danger text-white" : "bg-surface-2 text-muted"
           }`}
-          title="按一下开始录音，再按一下发送语音"
+          title={
+            recording
+              ? "停止录音"
+              : voiceDraft
+                ? "重录"
+                : "录音（停后可试听再发送）"
+          }
         >
           {recording ? "■" : <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2" width="6" height="10" rx="3" /><path d="M4 9a6 6 0 0 0 12 0" /><path d="M10 15v3" /><path d="M7 18h6" /></svg>}
         </button>
@@ -876,7 +944,7 @@ export default function Chat() {
         <div className="relative shrink-0">
           <button
             type="button"
-            disabled={recording || mediaBusy}
+            disabled={recording || mediaBusy || !!voiceDraft}
             onClick={() => setAttachOpen((v) => !v)}
             className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-2 text-xl font-light leading-none text-muted disabled:opacity-40"
             title="发送照片或视频"
@@ -940,7 +1008,32 @@ export default function Chat() {
         {recording ? (
           <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full bg-danger/10 px-3 py-2 text-sm text-danger">
             <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-danger" />
-            <span className="truncate">录音中 {recSecs}″</span>
+            <span className="truncate">录音中 {recSecs}″ · 再点停止</span>
+          </div>
+        ) : voiceDraft ? (
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={previewVoiceDraft}
+              className="flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full bg-accent/15 px-3 text-sm font-medium text-accent"
+            >
+              {draftPlaying ? "❚❚ 暂停" : "▶ 试听"}
+              <span className="text-xs opacity-80">{voiceDraft.secs}″</span>
+            </button>
+            <button
+              type="button"
+              onClick={discardVoiceDraft}
+              className="h-10 shrink-0 rounded-full border border-line px-3 text-xs text-muted"
+            >
+              重录
+            </button>
+            <button
+              type="button"
+              onClick={sendVoiceDraft}
+              className="btn-grad h-10 shrink-0 rounded-full px-3.5 text-sm font-semibold"
+            >
+              发送
+            </button>
           </div>
         ) : (
           <input
@@ -951,15 +1044,21 @@ export default function Chat() {
             className="min-w-0 flex-1 rounded-full border border-line bg-surface-2 px-3 py-2 outline-none focus:border-accent"
           />
         )}
-        <button
-          onClick={send}
-          disabled={recording || mediaBusy}
-          className="btn-grad h-10 w-10 shrink-0 rounded-full text-lg font-bold disabled:opacity-40"
-        >
-          ↑
-        </button>
+        {!voiceDraft && (
+          <button
+            onClick={send}
+            disabled={recording || mediaBusy}
+            className="btn-grad h-10 w-10 shrink-0 rounded-full text-lg font-bold disabled:opacity-40"
+          >
+            ↑
+          </button>
+        )}
       </div>
       </div>
+
+      {lightboxSrc && (
+        <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+      )}
 
       {scamWarn && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
