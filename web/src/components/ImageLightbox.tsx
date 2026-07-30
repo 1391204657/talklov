@@ -47,7 +47,7 @@ export default function ImageLightbox({ src, onClose }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const touchDist = (a: Touch, b: Touch) => {
+  const touchDist = (a: { clientX: number; clientY: number }, b: { clientX: number; clientY: number }) => {
     const dx = a.clientX - b.clientX;
     const dy = a.clientY - b.clientY;
     return Math.hypot(dx, dy);
