@@ -20,8 +20,9 @@ import {
 import { useApp } from "@/lib/store";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 import {
-  playMessageSound,
-  showLocalMessageNotification,
+  startCallRingtone,
+  stopCallRingtone,
+  showIncomingCallNotification,
 } from "@/lib/notify";
 import CallModal from "./CallModal";
 
@@ -98,6 +99,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const acceptIncoming = useCallback(async () => {
     if (!incoming) return;
     const { call, peer } = incoming;
+    stopCallRingtone();
     try {
       const res = await apiCallAction(call.id, "accept");
       setIncoming(null);
@@ -120,6 +122,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const rejectIncoming = useCallback(async () => {
     if (!incoming) return;
     const id = incoming.call.id;
+    stopCallRingtone();
     setIncoming(null);
     try {
       await apiCallAction(id, "reject");
@@ -186,11 +189,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
             call: row,
             peer: { id: row.caller_id, name, photo },
           });
-          playMessageSound(notifyPrefs.sound);
-          showLocalMessageNotification(
+          // Calls always ring by default (not tied to message sound toggle)
+          startCallRingtone(true);
+          showIncomingCallNotification(
             `${name} 来电`,
-            row.kind === "video" ? "视频通话" : "语音通话",
-            notifyPrefs.push,
+            row.kind === "video" ? "视频通话 · 点按接听" : "语音通话 · 点按接听",
+            true,
             `/chat/${row.caller_id}`
           );
         }
@@ -208,9 +212,16 @@ export function CallProvider({ children }: { children: ReactNode }) {
           if (
             row.status === "ended" ||
             row.status === "missed" ||
-            row.status === "rejected"
+            row.status === "rejected" ||
+            row.status === "accepted"
           ) {
-            setIncoming((cur) => (cur?.call.id === row.id ? null : cur));
+            setIncoming((cur) => {
+              if (cur?.call.id === row.id) {
+                stopCallRingtone();
+                return null;
+              }
+              return cur;
+            });
           }
         }
       )
@@ -242,7 +253,29 @@ export function CallProvider({ children }: { children: ReactNode }) {
     return () => {
       sb.removeChannel(channel);
     };
-  }, [userId, notifyPrefs.push, notifyPrefs.sound]);
+  }, [userId]);
+
+  // Keep ringtone while incoming overlay is visible; stop when it clears
+  useEffect(() => {
+    if (incoming && !active) {
+      startCallRingtone(true);
+      return () => stopCallRingtone();
+    }
+    stopCallRingtone();
+    return undefined;
+  }, [incoming, active]);
+
+  // Callee: auto-miss after 45s if unanswered
+  useEffect(() => {
+    if (!incoming) return;
+    const callId = incoming.call.id;
+    const t = window.setTimeout(() => {
+      stopCallRingtone();
+      setIncoming((cur) => (cur?.call.id === callId ? null : cur));
+      void apiCallAction(callId, "miss");
+    }, 45_000);
+    return () => clearTimeout(t);
+  }, [incoming]);
 
   // Auto-miss ringing after 45s (caller side)
   useEffect(() => {
