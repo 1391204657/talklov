@@ -857,67 +857,65 @@ export default function Chat() {
         </button>
       </div>
 
-      <div className="relative flex min-w-0 items-center gap-1 px-2 pb-3 pt-1">
-        <div className="flex shrink-0 items-center gap-0.5">
+      <div className="relative flex min-w-0 items-center gap-1.5 px-2.5 pb-3 pt-1">
+        <button
+          type="button"
+          onClick={recording ? stopRecording : startRecording}
+          disabled={mediaBusy}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg ${
+            recording ? "bg-danger text-white" : "bg-surface-2 text-muted"
+          }`}
+          title="按一下开始录音，再按一下发送语音"
+        >
+          {recording ? "■" : <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2" width="6" height="10" rx="3" /><path d="M4 9a6 6 0 0 0 12 0" /><path d="M10 15v3" /><path d="M7 18h6" /></svg>}
+        </button>
+
+        <div className="relative shrink-0">
           <button
             type="button"
-            onClick={recording ? stopRecording : startRecording}
-            disabled={mediaBusy}
-            className={`flex h-10 w-10 items-center justify-center rounded-full text-lg ${
-              recording ? "bg-danger text-white" : "bg-surface-2 text-muted"
-            }`}
-            title="按一下开始录音，再按一下发送语音"
+            disabled={recording || mediaBusy}
+            onClick={() => setAttachOpen((v) => !v)}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-2 text-xl font-light leading-none text-muted disabled:opacity-40"
+            title="发送照片或视频"
+            aria-label="添加照片或视频"
           >
-            {recording ? "■" : <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2" width="6" height="10" rx="3" /><path d="M4 9a6 6 0 0 0 12 0" /><path d="M10 15v3" /><path d="M7 18h6" /></svg>}
+            {mediaBusy ? "…" : "+"}
           </button>
-
-          <div className="relative">
-            <button
-              type="button"
-              disabled={recording || mediaBusy}
-              onClick={() => setAttachOpen((v) => !v)}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-2 text-xl font-light leading-none text-muted disabled:opacity-40"
-              title="发送照片或视频"
-              aria-label="添加照片或视频"
-            >
-              {mediaBusy ? "…" : "+"}
-            </button>
-            {attachOpen && (
-              <>
+          {attachOpen && (
+            <>
+              <button
+                type="button"
+                className="fixed inset-0 z-30 cursor-default"
+                aria-label="关闭"
+                onClick={() => setAttachOpen(false)}
+              />
+              <div className="absolute bottom-[2.85rem] left-0 z-40 w-36 overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_12px_40px_rgba(40,20,60,0.18)]">
                 <button
                   type="button"
-                  className="fixed inset-0 z-30 cursor-default"
-                  aria-label="关闭"
-                  onClick={() => setAttachOpen(false)}
-                />
-                <div className="absolute bottom-[2.85rem] left-0 z-40 w-36 overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_12px_40px_rgba(40,20,60,0.18)]">
-                  <button
-                    type="button"
-                    onClick={() => imageInputRef.current?.click()}
-                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm active:bg-surface-2"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-5 w-5 text-muted" fill="none" stroke="currentColor" strokeWidth="1.6">
-                      <rect x="3" y="5" width="18" height="14" rx="2" />
-                      <circle cx="8.5" cy="10" r="1.5" />
-                      <path d="m21 15-4.5-4.5L9 18" />
-                    </svg>
-                    照片
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => videoInputRef.current?.click()}
-                    className="flex w-full items-center gap-2 border-t border-line px-3 py-2.5 text-left text-sm active:bg-surface-2"
-                  >
-                    <svg viewBox="0 0 24 24" className="h-5 w-5 text-muted" fill="none" stroke="currentColor" strokeWidth="1.6">
-                      <rect x="3" y="6" width="13" height="12" rx="2" />
-                      <path d="m16 10 5-3v10l-5-3" />
-                    </svg>
-                    视频
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+                  onClick={() => imageInputRef.current?.click()}
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm active:bg-surface-2"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 text-muted" fill="none" stroke="currentColor" strokeWidth="1.6">
+                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                    <circle cx="8.5" cy="10" r="1.5" />
+                    <path d="m21 15-4.5-4.5L9 18" />
+                  </svg>
+                  照片
+                </button>
+                <button
+                  type="button"
+                  onClick={() => videoInputRef.current?.click()}
+                  className="flex w-full items-center gap-2 border-t border-line px-3 py-2.5 text-left text-sm active:bg-surface-2"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 text-muted" fill="none" stroke="currentColor" strokeWidth="1.6">
+                    <rect x="3" y="6" width="13" height="12" rx="2" />
+                    <path d="m16 10 5-3v10l-5-3" />
+                  </svg>
+                  视频
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         <input
