@@ -523,30 +523,50 @@ export default function Chat() {
 
   return (
     <main className="flex min-h-0 flex-1 flex-col">
-      <header className="flex shrink-0 items-center gap-3 border-b border-line bg-surface/95 px-3 py-2 backdrop-blur">
-        <button onClick={() => router.back()} className="px-1 text-xl">
+      <header className="sticky top-0 z-20 flex shrink-0 items-center gap-2.5 border-b border-line bg-surface/95 px-3 py-2 backdrop-blur">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="shrink-0 px-1 text-xl"
+          aria-label="返回"
+        >
           ←
         </button>
-        <div className="flex-1">
-          <div className="flex items-center gap-1 font-semibold">
-            {profile.name}
-            {profile.verified && (
-              <span className="text-xs text-accent-2">✓</span>
-            )}
+        <button
+          type="button"
+          onClick={() => router.push(`/profile/${profile.id}`)}
+          className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+        >
+          <div
+            className="h-9 w-9 shrink-0 rounded-full bg-cover bg-center bg-surface-2"
+            style={{ backgroundImage: `url(${profile.photo})` }}
+            aria-hidden
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1 truncate font-semibold">
+              {profile.name}
+              {profile.verified && (
+                <span className="text-xs text-accent-2">✓</span>
+              )}
+            </div>
+            <div className="truncate text-[11px] text-muted">
+              {profile.nativeLang}
+              {profile.chineseVariants?.length
+                ? ` · ${profile.chineseVariants
+                    .map((v) => (v === "cantonese" ? "粤语" : "普通话"))
+                    .join("/")} `
+                : ""}
+              {" · "}
+              {profile.online ? "在线" : "离线"}
+            </div>
           </div>
-          <div className="text-[11px] text-muted">
-            {profile.nativeLang}
-            {profile.chineseVariants?.length
-              ? ` · ${profile.chineseVariants
-                  .map((v) => (v === "cantonese" ? "粤语" : "普通话"))
-                  .join("/")} `
-              : ""}
-            {" · "}
-            {profile.online ? "在线" : "离线"}
-          </div>
-        </div>
-        <button className="text-sm text-muted"><svg viewBox="0 0 20 20" className="inline h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h2a1 1 0 0 1 .95.68l.8 2.4a1 1 0 0 1-.27 1.02L6.7 7.38a10 10 0 0 0 5.92 5.92l1.28-1.28a1 1 0 0 1 1.02-.27l2.4.8a1 1 0 0 1 .68.95v2a2.5 2.5 0 0 1-2.5 2.5C8.6 18 2 11.4 2 4.5Z" /></svg></button>
-        <button className="text-sm text-muted"><svg viewBox="0 0 20 20" className="inline h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="16" height="12" rx="2" /><path d="m15 7 3-2v10l-3-2" /></svg></button>
+        </button>
+        <button type="button" className="shrink-0 text-sm text-muted" aria-label="通话">
+          <svg viewBox="0 0 20 20" className="inline h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h2a1 1 0 0 1 .95.68l.8 2.4a1 1 0 0 1-.27 1.02L6.7 7.38a10 10 0 0 0 5.92 5.92l1.28-1.28a1 1 0 0 1 1.02-.27l2.4.8a1 1 0 0 1 .68.95v2a2.5 2.5 0 0 1-2.5 2.5C8.6 18 2 11.4 2 4.5Z" /></svg>
+        </button>
+        <button type="button" className="shrink-0 text-sm text-muted" aria-label="视频">
+          <svg viewBox="0 0 20 20" className="inline h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="16" height="12" rx="2" /><path d="m15 7 3-2v10l-3-2" /></svg>
+        </button>
       </header>
 
       {showSafety && (
