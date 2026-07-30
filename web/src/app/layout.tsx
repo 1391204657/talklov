@@ -3,6 +3,7 @@ import "./globals.css";
 import { AppProvider } from "@/lib/store";
 import Modals from "@/components/Modals";
 import InstallGuide from "@/components/InstallGuide";
+import { CallProvider } from "@/components/calls/CallProvider";
 
 export const metadata: Metadata = {
   title: "TalkLov · 你的中美语言搭子与交友平台",
@@ -39,9 +40,11 @@ export default function RootLayout({
     <html lang="zh-CN" className="h-full" data-theme="light">
       <body className="min-h-full bg-background text-foreground antialiased">
         <AppProvider>
-          {children}
-          <Modals />
-          <InstallGuide />
+          <CallProvider>
+            {children}
+            <Modals />
+            <InstallGuide />
+          </CallProvider>
         </AppProvider>
       </body>
     </html>

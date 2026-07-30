@@ -11,6 +11,7 @@ import { consumeOpenerDraft } from "@/lib/datingSim";
 import { isAiPersona, takeAiWelcomeReply } from "@/lib/aiPersonas";
 import ImageLightbox from "@/components/ImageLightbox";
 import { compressImageFile } from "@/lib/photoUpload";
+import { useCallOptional } from "@/components/calls/CallProvider";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   resolveConversation,
@@ -64,6 +65,7 @@ export default function Chat() {
   const useBackend = configured && !!userId && !isAiPersona(params.id);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const welcomeFired = useRef(false);
+  const callApi = useCallOptional();
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     if (isAiPersona(params.id)) return [];
@@ -603,6 +605,45 @@ export default function Chat() {
     }
   };
 
+  const startCallFromChat = async (kind: "audio" | "video") => {
+    if (!profile) return;
+    if (isAiPersona(profile.id)) {
+      alert("演示 AI 伙伴暂不支持真实通话");
+      return;
+    }
+    if (!userId || !configured) {
+      alert("请先登录并完成认证后再通话");
+      openVerify("login");
+      return;
+    }
+    if (!conversationId) {
+      alert("请先互相接受打招呼，建立会话后再通话");
+      return;
+    }
+    try {
+      const conv = await resolveConversation(profile.id);
+      if (!conv || conv.status !== "accepted") {
+        alert("对方接受打招呼后才能通话");
+        return;
+      }
+    } catch {
+      /* API will re-check */
+    }
+    if (!callApi) {
+      alert("通话组件未加载");
+      return;
+    }
+    await callApi.startCall({
+      conversationId,
+      peer: {
+        id: profile.id,
+        name: profile.name,
+        photo: profile.photo,
+      },
+      kind,
+    });
+  };
+
   const onPickImages = async (files: FileList | null) => {
     setAttachOpen(false);
     if (!files?.length) return;
@@ -686,10 +727,22 @@ export default function Chat() {
             </div>
           </div>
         </button>
-        <button type="button" className="shrink-0 text-sm text-muted" aria-label="通话">
+        <button
+          type="button"
+          onClick={() => void startCallFromChat("audio")}
+          className="shrink-0 text-sm text-muted"
+          aria-label="通话"
+          title="语音通话"
+        >
           <svg viewBox="0 0 20 20" className="inline h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h2a1 1 0 0 1 .95.68l.8 2.4a1 1 0 0 1-.27 1.02L6.7 7.38a10 10 0 0 0 5.92 5.92l1.28-1.28a1 1 0 0 1 1.02-.27l2.4.8a1 1 0 0 1 .68.95v2a2.5 2.5 0 0 1-2.5 2.5C8.6 18 2 11.4 2 4.5Z" /></svg>
         </button>
-        <button type="button" className="shrink-0 text-sm text-muted" aria-label="视频">
+        <button
+          type="button"
+          onClick={() => void startCallFromChat("video")}
+          className="shrink-0 text-sm text-muted"
+          aria-label="视频"
+          title="视频通话"
+        >
           <svg viewBox="0 0 20 20" className="inline h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="16" height="12" rx="2" /><path d="m15 7 3-2v10l-3-2" /></svg>
         </button>
       </header>
