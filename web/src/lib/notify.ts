@@ -81,7 +81,8 @@ export function playMessageSound(enabled: boolean) {
 export function showLocalMessageNotification(
   title: string,
   body: string,
-  enabled: boolean
+  enabled: boolean,
+  openUrl = "/messages"
 ) {
   if (!enabled || typeof window === "undefined" || !("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
@@ -90,9 +91,17 @@ export function showLocalMessageNotification(
       body,
       icon: "/brand/talklov-app-icon-192.png",
       tag: "talklov-message",
+      data: { url: openUrl },
     });
     n.onclick = () => {
       window.focus();
+      try {
+        const url =
+          (n as Notification & { data?: { url?: string } }).data?.url || openUrl;
+        if (url) window.location.assign(url);
+      } catch {
+        window.location.assign(openUrl);
+      }
       n.close();
     };
   } catch {

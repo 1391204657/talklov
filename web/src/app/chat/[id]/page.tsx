@@ -20,6 +20,11 @@ import {
   playMessageSound,
   showLocalMessageNotification,
 } from "@/lib/notify";
+import {
+  markLocalConvoRead,
+  totalUnread,
+  upsertLocalConvo,
+} from "@/lib/localInbox";
 
 const SCAM_PATTERNS = [
   "转账", "汇款", "打钱", "投资", "比特币", "bitcoin", "wire", "money",
@@ -43,8 +48,15 @@ function speak(text: string) {
 export default function Chat() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { tier, myProfile, openVerify, configured, userId, notifyPrefs } =
-    useApp();
+  const {
+    tier,
+    myProfile,
+    openVerify,
+    configured,
+    userId,
+    notifyPrefs,
+    applyUnreadBadge,
+  } = useApp();
   const { profile } = useProfile(params.id);
   const useBackend = configured && !!userId && !isAiPersona(params.id);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -75,6 +87,13 @@ export default function Chat() {
   const chunksRef = useRef<Blob[]>([]);
   const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+
+  // Opening an AI chat clears unread on the messages list / home badge
+  useEffect(() => {
+    if (!profile || !isAiPersona(profile.id)) return;
+    markLocalConvoRead(profile.id);
+    applyUnreadBadge(totalUnread());
+  }, [profile, applyUnreadBadge]);
 
   // Seed opener from profile hello, and/or AI practice draft into composer.
   // AI personas: after opener, auto-request a welcome reply once.
@@ -115,21 +134,31 @@ export default function Chat() {
               const data = await res.json();
               if (!data.reply) return;
               window.setTimeout(() => {
+                const reply = data.reply as string;
                 setMessages((m) => [
                   ...m,
                   {
                     id: `ai-welcome-${Date.now()}`,
                     fromMe: false,
                     kind: "text",
-                    text: data.reply as string,
+                    text: reply,
                     time: "刚刚",
                   },
                 ]);
+                upsertLocalConvo({
+                  otherId: profile.id,
+                  name: profile.name,
+                  photo: profile.photo,
+                  preview: reply,
+                  unread: 0,
+                });
+                applyUnreadBadge(totalUnread());
                 playMessageSound(notifyPrefs.sound);
                 showLocalMessageNotification(
                   profile.name,
-                  data.reply as string,
-                  notifyPrefs.push
+                  reply,
+                  notifyPrefs.push,
+                  `/chat/${profile.id}`
                 );
               }, 700 + Math.random() * 900);
             } catch {
@@ -301,19 +330,26 @@ export default function Chat() {
         }),
       });
       const data = await res.json();
-      if (data.reply) {
+      if (data.reply && profile) {
         setTimeout(() => {
+          const reply = data.reply as string;
           setMessages((m) => [
             ...m,
             {
               id: `ai-${Date.now()}`,
               fromMe: false,
               kind: "text",
-              text: data.reply,
-              translation: autoTranslate ? undefined : undefined,
+              text: reply,
               time: "刚刚",
             },
           ]);
+          upsertLocalConvo({
+            otherId: profile.id,
+            name: profile.name,
+            photo: profile.photo,
+            preview: reply,
+            unread: 0,
+          });
         }, 800 + Math.random() * 1200);
       }
     } catch {}

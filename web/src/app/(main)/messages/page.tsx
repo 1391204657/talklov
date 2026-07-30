@@ -17,6 +17,12 @@ import {
   type PendingIcebreaker,
 } from "@/lib/db";
 import { consumeOpenerDraft, writeOpenerDraft } from "@/lib/datingSim";
+import {
+  listLocalConvos,
+  subscribeInbox,
+  totalUnread,
+  type LocalConvo,
+} from "@/lib/localInbox";
 
 interface QueueItem {
   id: string;
@@ -25,12 +31,16 @@ interface QueueItem {
 }
 
 export default function Messages() {
-  const { tier, configured, userId, applyUnreadBadge, notifyPrefs } = useApp();
+  const { tier, configured, userId, myProfile, applyUnreadBadge, notifyPrefs } =
+    useApp();
   const router = useRouter();
   const useBackend = configured && !!userId;
+  const loggedIn =
+    tier !== "guest" || !!userId || !!myProfile.phoneE164;
 
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [convos, setConvos] = useState<ConversationSummary[]>([]);
+  const [localConvos, setLocalConvos] = useState<LocalConvo[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [shareMode, setShareMode] = useState(false);
   const [shareDraft, setShareDraft] = useState("");
@@ -46,24 +56,14 @@ export default function Messages() {
     }
   }, []);
 
-  // Offline demo: a sample incoming opener so the queue UI is visible.
   useEffect(() => {
-    if (useBackend) return;
-    const ryan = mockProfiles.find((p) => p.id === "ryan");
-    if (ryan) {
-      setQueue([
-        {
-          id: "demo",
-          sender: ryan,
-          text: "Hi! 我在学中文，看到你也喜欢旅行，想跟你练练口语 😊 / practice together?",
-        },
-      ]);
-    }
-  }, [useBackend]);
-
-  useEffect(() => {
-    applyUnreadBadge(queue.length);
-  }, [queue.length, applyUnreadBadge, notifyPrefs.badge]);
+    const refresh = () => {
+      setLocalConvos(listLocalConvos());
+      applyUnreadBadge(totalUnread());
+    };
+    refresh();
+    return subscribeInbox(refresh);
+  }, [applyUnreadBadge, notifyPrefs.badge]);
 
   // Backend: load pending openers + accepted conversations, subscribe to changes.
   useEffect(() => {
@@ -116,7 +116,7 @@ export default function Messages() {
     .filter((p) => p.country === "US")
     .slice(0, 6);
 
-  if (tier === "guest") {
+  if (!loggedIn) {
     return (
       <main>
         <header className="sticky top-0 z-20 flex items-center justify-end bg-background/90 px-4 py-2 backdrop-blur">
@@ -130,7 +130,11 @@ export default function Messages() {
     );
   }
 
-  const offlineConvos = mockProfiles.slice(0, 3);
+  const hasLocal = localConvos.length > 0;
+  const empty =
+    !shareMode &&
+    queue.length === 0 &&
+    (useBackend ? convos.length === 0 : !hasLocal);
 
   return (
     <main>
@@ -175,118 +179,113 @@ export default function Messages() {
           </section>
         )}
 
-      {/* Pending opener queue (待接受) */}
-      {queue.length > 0 && (
-        <section className="px-4 pb-2">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-            <span>待接受</span>
-            <span className="rounded-full bg-accent px-1.5 text-[11px] leading-5 text-white">
-              {queue.length}
-            </span>
-          </div>
-          <p className="mb-2 text-[11px] text-muted">
-            对方向你发来了开场白。接受后开始聊天，忽略则不会通知对方。
-          </p>
-          <div className="space-y-2">
-            {queue.map((item) => (
-              <div
-                key={item.id}
-                className="animate-fadeUp rounded-2xl border border-line bg-surface p-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="h-11 w-11 shrink-0 rounded-full bg-cover bg-center"
-                    style={{ backgroundImage: `url(${item.sender.photo})` }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1 font-medium">
-                      {item.sender.name}
-                      <span className="text-xs">
-                        {item.sender.country === "US" ? "🇺🇸" : "🇨🇳"}
-                      </span>
-                    </div>
-                    <div className="text-[13px] leading-snug text-muted">
-                      {item.text}
+        {queue.length > 0 && (
+          <section className="px-4 pb-2">
+            <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+              <span>待接受</span>
+              <span className="rounded-full bg-accent px-1.5 text-[11px] leading-5 text-white">
+                {queue.length}
+              </span>
+            </div>
+            <p className="mb-2 text-[11px] text-muted">
+              对方向你发来了开场白。接受后开始聊天，忽略则不会通知对方。
+            </p>
+            <div className="space-y-2">
+              {queue.map((item) => (
+                <div
+                  key={item.id}
+                  className="animate-fadeUp rounded-2xl border border-line bg-surface p-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="h-11 w-11 shrink-0 rounded-full bg-cover bg-center"
+                      style={{ backgroundImage: `url(${item.sender.photo})` }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1 font-medium">
+                        {item.sender.name}
+                        <span className="text-xs">
+                          {item.sender.country === "US" ? "🇺🇸" : "🇨🇳"}
+                        </span>
+                      </div>
+                      <div className="text-[13px] leading-snug text-muted">
+                        {item.text}
+                      </div>
                     </div>
                   </div>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => onDecline(item)}
+                      className="flex-1 rounded-xl border border-line py-2 text-sm text-muted"
+                    >
+                      忽略
+                    </button>
+                    <button
+                      disabled={busy === item.id}
+                      onClick={() => onAccept(item)}
+                      className="btn-grad flex-1 rounded-xl py-2 text-sm font-semibold disabled:opacity-50"
+                    >
+                      {busy === item.id ? "…" : "接受并聊天"}
+                    </button>
+                  </div>
                 </div>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => onDecline(item)}
-                    className="flex-1 rounded-xl border border-line py-2 text-sm text-muted"
-                  >
-                    忽略
-                  </button>
-                  <button
-                    disabled={busy === item.id}
-                    onClick={() => onAccept(item)}
-                    className="btn-grad flex-1 rounded-xl py-2 text-sm font-semibold disabled:opacity-50"
-                  >
-                    {busy === item.id ? "…" : "接受并聊天"}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+              ))}
+            </div>
+          </section>
+        )}
 
-      {/* Conversation list */}
-      {useBackend ? (
         <ul className="divide-y divide-line">
-          {convos.map((c) => (
-            <li key={c.conversationId}>
+          {/* Local AI / demo chats (美琪、Jack…) */}
+          {localConvos.map((c) => (
+            <li key={c.otherId}>
               <Link
                 href={`/chat/${c.otherId}`}
                 className="flex items-center gap-3 px-4 py-3 active:bg-surface"
               >
                 <div
                   className="h-12 w-12 shrink-0 rounded-full bg-cover bg-center bg-surface-2"
-                  style={{ backgroundImage: `url(${c.other.photo})` }}
+                  style={{ backgroundImage: `url(${c.photo})` }}
                 />
                 <div className="min-w-0 flex-1">
-                  <span className="font-medium">{c.other.name}</span>
-                </div>
-              </Link>
-            </li>
-          ))}
-          {convos.length === 0 && queue.length === 0 && !shareMode && (
-            <li className="p-10 text-center text-sm text-muted">
-              还没有会话，去发现页打个招呼吧～
-            </li>
-          )}
-        </ul>
-      ) : (
-        <ul className="divide-y divide-line">
-          {offlineConvos.map((p, i) => (
-            <li key={p.id}>
-              <Link
-                href={`/chat/${p.id}`}
-                className="flex items-center gap-3 px-4 py-3 active:bg-surface"
-              >
-                <div
-                  className="h-12 w-12 shrink-0 rounded-full bg-cover bg-center"
-                  style={{ backgroundImage: `url(${p.photo})` }}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{p.name}</span>
-                    <span className="text-[11px] text-muted">上午 9:3{i}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{c.name}</span>
+                    <span className="text-[11px] text-muted">刚刚</span>
                   </div>
-                  <div className="truncate text-sm text-muted">
-                    {i === 0 ? "谢谢！我们可以互相帮助 🙌" : "很高兴认识你 😊"}
-                  </div>
+                  <div className="truncate text-sm text-muted">{c.preview}</div>
                 </div>
-                {i === 0 && (
-                  <span className="h-5 min-w-5 rounded-full bg-accent px-1 text-center text-[11px] leading-5 text-white">
-                    2
+                {c.unread > 0 && (
+                  <span className="h-5 min-w-5 rounded-full bg-accent px-1.5 text-center text-[11px] leading-5 text-white">
+                    {c.unread}
                   </span>
                 )}
               </Link>
             </li>
           ))}
+
+          {useBackend &&
+            convos.map((c) => (
+              <li key={c.conversationId}>
+                <Link
+                  href={`/chat/${c.otherId}`}
+                  className="flex items-center gap-3 px-4 py-3 active:bg-surface"
+                >
+                  <div
+                    className="h-12 w-12 shrink-0 rounded-full bg-cover bg-center bg-surface-2"
+                    style={{ backgroundImage: `url(${c.other.photo})` }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <span className="font-medium">{c.other.name}</span>
+                  </div>
+                </Link>
+              </li>
+            ))}
+
+          {empty && (
+            <li className="p-10 text-center text-sm text-muted">
+              还没有会话，去发现页打个招呼吧～
+            </li>
+          )}
         </ul>
-      )}
       </div>
     </main>
   );
@@ -295,7 +294,17 @@ export default function Messages() {
 function EmptyState({ title, desc }: { title: string; desc: string }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-2 p-10 text-center">
-      <svg viewBox="0 0 48 48" className="h-12 w-12 text-muted" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 12a4 4 0 0 1 4-4h28a4 4 0 0 1 4 4v18a4 4 0 0 1-4 4H20l-8 6v-6h-2a4 4 0 0 1-4-4V12Z" /></svg>
+      <svg
+        viewBox="0 0 48 48"
+        className="h-12 w-12 text-muted"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M6 12a4 4 0 0 1 4-4h28a4 4 0 0 1 4 4v18a4 4 0 0 1-4 4H20l-8 6v-6h-2a4 4 0 0 1-4-4V12Z" />
+      </svg>
       <h2 className="text-lg font-bold">{title}</h2>
       <p className="text-sm text-muted">{desc}</p>
       <Link

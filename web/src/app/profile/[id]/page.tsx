@@ -22,6 +22,7 @@ import {
   playMessageSound,
   showLocalMessageNotification,
 } from "@/lib/notify";
+import { upsertLocalConvo, totalUnread } from "@/lib/localInbox";
 import ProfilePhoto from "@/components/ProfilePhoto";
 import VoicePlayButton from "@/components/VoicePlayButton";
 import { formatChineseVariants, shortLevel } from "@/lib/profile";
@@ -47,6 +48,7 @@ export default function ProfileDetail() {
     configured,
     userId,
     notifyPrefs,
+    applyUnreadBadge,
   } = useApp();
   const [hello, setHello] = useState<HelloState>("idle");
   const [opener, setOpener] = useState("");
@@ -90,15 +92,24 @@ export default function ProfileDetail() {
       setHello("accepted");
       setWaitLeft(null);
       markAiWelcomeReply(profile.id, sentOpenerRef.current);
-      playMessageSound(notifyPrefs.sound);
       const body =
         profile.id === "mei"
           ? "嗨！我看到你的打招呼啦，很高兴认识你～"
           : "Hey! Just accepted your hello — nice to meet you!";
+      upsertLocalConvo({
+        otherId: profile.id,
+        name: profile.name,
+        photo: profile.photo,
+        preview: body,
+        unread: 1,
+      });
+      applyUnreadBadge(totalUnread());
+      playMessageSound(notifyPrefs.sound);
       showLocalMessageNotification(
         `${profile.name} 已接受你的打招呼`,
         body,
-        notifyPrefs.push
+        notifyPrefs.push,
+        `/chat/${profile.id}`
       );
     }, AI_AUTO_ACCEPT_SECONDS * 1000);
 
@@ -106,7 +117,13 @@ export default function ProfileDetail() {
       window.clearInterval(tick);
       window.clearTimeout(acceptTimer);
     };
-  }, [hello, profile, notifyPrefs.sound, notifyPrefs.push]);
+  }, [
+    hello,
+    profile,
+    notifyPrefs.sound,
+    notifyPrefs.push,
+    applyUnreadBadge,
+  ]);
 
   if (!profile) {
     return (

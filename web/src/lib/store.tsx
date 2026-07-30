@@ -132,6 +132,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [pendingHelloId, setPendingHelloId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [notifyPrefs, setNotifyPrefsState] = useState<NotifyPrefs>(defaultNotifyPrefs);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     try {
@@ -140,14 +141,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const s = JSON.parse(raw);
         const phone = (s.myProfile?.phoneE164 as string | undefined) ?? "";
         const savedTier = (s.tier as Tier | undefined) ?? "guest";
-        // Phone login should never stay stuck as guest after refresh
+        const savedUid = (s.userId as string | null | undefined) ?? null;
+        // Phone / saved session should never stay stuck as guest after refresh
         const nextTier =
           savedTier === "verified"
             ? "verified"
-            : savedTier === "light" || phone
+            : savedTier === "light" || phone || savedUid
               ? "light"
               : "guest";
         setTier(nextTier);
+        if (savedUid) setUserId(savedUid);
         setRegion(s.region ?? "global");
         setInstalled(s.installed ?? false);
         setTheme(s.theme ?? "light");
@@ -165,13 +168,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setNotifyPrefsState({ ...defaultNotifyPrefs, ...JSON.parse(nRaw) });
       }
     } catch {}
+    setHydrated(true);
   }, []);
 
+  // Don't persist until hydrated — otherwise first paint (guest) wipes saved login
   useEffect(() => {
+    if (!hydrated) return;
     try {
       localStorage.setItem(
         KEY,
-        JSON.stringify({ tier, region, installed, theme, locale, myProfile })
+        JSON.stringify({
+          tier,
+          region,
+          installed,
+          theme,
+          locale,
+          myProfile,
+          userId,
+        })
       );
     } catch {
       // Quota exceeded: persist profile without bulky data: photos so app still works.
@@ -184,6 +198,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             installed,
             theme,
             locale,
+            userId,
             myProfile: {
               ...myProfile,
               photos: myProfile.photos.filter((u) => !u.startsWith("data:")),
@@ -192,7 +207,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         );
       } catch {}
     }
-  }, [tier, region, installed, theme, locale, myProfile]);
+  }, [hydrated, tier, region, installed, theme, locale, myProfile, userId]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);

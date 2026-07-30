@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useApp } from "@/lib/store";
 import { tApp } from "@/lib/appCopy";
+import { subscribeInbox, totalUnread } from "@/lib/localInbox";
 
 const tabIcons = {
   discover: (
@@ -41,12 +43,28 @@ const tabIcons = {
 export default function TabBar() {
   const path = usePathname();
   const router = useRouter();
-  const { locale, tier, openRegister } = useApp();
+  const { locale, tier, openRegister, applyUnreadBadge } = useApp();
   const c = tApp(locale);
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => {
+      const n = totalUnread();
+      setUnread(n);
+      applyUnreadBadge(n);
+    };
+    refresh();
+    return subscribeInbox(refresh);
+  }, [applyUnreadBadge]);
 
   const tabs = [
     { href: "/discover", label: c.tabDiscover, icon: tabIcons.discover },
-    { href: "/messages", label: c.tabMessages, icon: tabIcons.messages },
+    {
+      href: "/messages",
+      label: c.tabMessages,
+      icon: tabIcons.messages,
+      badge: unread,
+    },
     { href: "/moments", label: c.tabMoments, icon: tabIcons.moments },
     { href: "/learn", label: c.tabLearn, icon: tabIcons.learn },
   ] as const;
@@ -68,6 +86,7 @@ export default function TabBar() {
         {/* Left pair */}
         {tabs.slice(0, 2).map((t) => {
           const active = path.startsWith(t.href);
+          const badge = "badge" in t ? t.badge : 0;
           return (
             <Link
               key={t.href}
@@ -76,8 +95,13 @@ export default function TabBar() {
                 active ? "text-accent" : "text-muted"
               }`}
             >
-              <span className={active ? "opacity-100" : "opacity-80"}>
+              <span className={`relative ${active ? "opacity-100" : "opacity-80"}`}>
                 {t.icon}
+                {badge > 0 && (
+                  <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold leading-none text-white">
+                    {badge > 9 ? "9+" : badge}
+                  </span>
+                )}
               </span>
               {t.label}
             </Link>
