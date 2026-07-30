@@ -25,6 +25,7 @@ import {
   markLocalConvoRead,
   totalUnread,
   upsertLocalConvo,
+  markActiveChatPartner,
 } from "@/lib/localInbox";
 
 const SCAM_PATTERNS = [
@@ -118,7 +119,9 @@ export default function Chat() {
 
   // Opening an AI chat clears unread on the messages list / home badge
   useEffect(() => {
-    if (!profile || !isAiPersona(profile.id)) return;
+    if (!profile) return;
+    markActiveChatPartner(profile.id);
+    if (!isAiPersona(profile.id)) return;
     markLocalConvoRead(profile.id);
     applyUnreadBadge(totalUnread());
   }, [profile, applyUnreadBadge]);

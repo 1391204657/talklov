@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import ProfileCard from "@/components/ProfileCard";
 import MeAvatarButton from "@/components/MeAvatarButton";
 import { useProfiles } from "@/lib/useProfiles";
+import {
+  HIDE_ACTIVE_CHATS_FROM_DISCOVER,
+  listActiveChatPartnerIds,
+} from "@/lib/localInbox";
 
 const filters = [
   { id: "all", label: "全部" },
@@ -16,7 +20,13 @@ export default function Discover() {
   const [filter, setFilter] = useState("all");
   const { profiles, loading } = useProfiles();
 
+  const activeIds = useMemo(() => {
+    if (!HIDE_ACTIVE_CHATS_FROM_DISCOVER) return new Set<string>();
+    return new Set(listActiveChatPartnerIds());
+  }, [profiles, filter]);
+
   const list = profiles.filter((p) => {
+    if (HIDE_ACTIVE_CHATS_FROM_DISCOVER && activeIds.has(p.id)) return false;
     if (filter === "CN") return p.country === "CN";
     if (filter === "US") return p.country === "US";
     if (filter === "online") return p.online;

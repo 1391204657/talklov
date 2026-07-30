@@ -22,7 +22,7 @@ import {
   playMessageSound,
   showLocalMessageNotification,
 } from "@/lib/notify";
-import { upsertLocalConvo, totalUnread } from "@/lib/localInbox";
+import { upsertLocalConvo, totalUnread, markActiveChatPartner } from "@/lib/localInbox";
 import ProfilePhoto from "@/components/ProfilePhoto";
 import VoicePlayButton from "@/components/VoicePlayButton";
 import { formatChineseVariants, shortLevel } from "@/lib/profile";
@@ -360,7 +360,10 @@ export default function ProfileDetail() {
                   🌍 跨国有时差，Ta 可能在休息——开场白长期有效，不会过期，耐心等回应就好。
                 </p>
                 <button
-                  onClick={() => setHello("accepted")}
+                  onClick={() => {
+                    setHello("accepted");
+                    markActiveChatPartner(profile.id);
+                  }}
                   className="mt-3 rounded-lg border border-line px-3 py-1.5 text-xs text-muted"
                 >
                   （演示）模拟对方接受了

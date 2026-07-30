@@ -7,7 +7,7 @@ export type NotifyPrefs = {
 };
 
 export const defaultNotifyPrefs: NotifyPrefs = {
-  push: false,
+  push: true,
   badge: true,
   sound: true,
 };

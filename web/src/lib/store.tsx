@@ -167,6 +167,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (nRaw) {
         setNotifyPrefsState({ ...defaultNotifyPrefs, ...JSON.parse(nRaw) });
       }
+      // One-time: message notifications default ON (was false in early builds)
+      if (!localStorage.getItem("talklov_notify_push_default_v1")) {
+        setNotifyPrefsState((prev) => ({ ...prev, push: true }));
+        localStorage.setItem("talklov_notify_push_default_v1", "1");
+      }
     } catch {}
     setHydrated(true);
   }, []);
