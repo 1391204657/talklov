@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useApp } from "@/lib/store";
 import MeAvatarButton from "@/components/MeAvatarButton";
 import { compressImageFile } from "@/lib/photoUpload";
+import { moderateContent } from "@/lib/moderation/client";
 import {
   consumeMomentDraft,
   consumeMomentTag,
@@ -109,23 +110,44 @@ export default function ComposeMomentPage() {
 
   const canPublish = (text.trim().length > 0 || images.length > 0) && !posted && !busy;
 
-  const publish = () => {
+  const publish = async () => {
     if (!canPublish) return;
-    saveUserMoment({
-      id: `um-${Date.now()}`,
-      text: text.trim(),
-      time: "刚刚",
-      likes: 0,
-      comments: [],
-      corrections: [],
-      tag,
-      media: images.map((img) => ({
-        type: "image" as const,
-        url: img.url,
-      })),
-    });
-    setPosted(true);
-    setTimeout(() => router.push("/moments"), 500);
+    setBusy(true);
+    try {
+      const mod = await moderateContent({
+        text: text.trim() || undefined,
+        imageDataUrl: images[0]?.url,
+      });
+      if (!mod.allowed) {
+        alert(mod.reason || (en ? "Content blocked by safety check." : "内容未通过安全审核，无法发布。"));
+        return;
+      }
+      // Extra pass for remaining images
+      for (const img of images.slice(1)) {
+        const m = await moderateContent({ imageDataUrl: img.url });
+        if (!m.allowed) {
+          alert(m.reason || (en ? "A photo was blocked." : "有图片未通过安全审核。"));
+          return;
+        }
+      }
+      saveUserMoment({
+        id: `um-${Date.now()}`,
+        text: text.trim(),
+        time: "刚刚",
+        likes: 0,
+        comments: [],
+        corrections: [],
+        tag,
+        media: images.map((img) => ({
+          type: "image" as const,
+          url: img.url,
+        })),
+      });
+      setPosted(true);
+      setTimeout(() => router.push("/moments"), 500);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -279,10 +301,10 @@ export default function ComposeMomentPage() {
       <button
         type="button"
         disabled={!canPublish}
-        onClick={publish}
+        onClick={() => void publish()}
         className="btn-grad mt-4 w-full rounded-xl py-3.5 text-sm font-semibold disabled:opacity-40"
       >
-        {en ? "Post" : "发布"}
+        {busy ? (en ? "Checking…" : "审核中…") : en ? "Post" : "发布"}
       </button>
     </main>
   );

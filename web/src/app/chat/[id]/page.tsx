@@ -12,6 +12,7 @@ import { isAiPersona, takeAiWelcomeReply } from "@/lib/aiPersonas";
 import ImageLightbox from "@/components/ImageLightbox";
 import { compressImageFile } from "@/lib/photoUpload";
 import { useCallOptional } from "@/components/calls/CallProvider";
+import { moderateContent } from "@/lib/moderation/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   resolveConversation,
@@ -323,11 +324,16 @@ export default function Chat() {
     }
   };
 
-  const send = () => {
+  const send = async () => {
     const text = input.trim();
     if (!text) return;
     if (scanScam(text)) {
       setScamWarn(true);
+      return;
+    }
+    const mod = await moderateContent({ text });
+    if (!mod.allowed) {
+      alert(mod.reason || "内容未通过安全审核，无法发送。");
       return;
     }
     const userMsg: ChatMessage = {
@@ -584,7 +590,17 @@ export default function Chat() {
     }
   };
 
-  const sendMediaMessage = (kind: "image" | "video", mediaUrl: string) => {
+  const sendMediaMessage = async (
+    kind: "image" | "video",
+    mediaUrl: string
+  ) => {
+    if (kind === "image") {
+      const mod = await moderateContent({ imageDataUrl: mediaUrl });
+      if (!mod.allowed) {
+        alert(mod.reason || "图片未通过安全审核，无法发送。");
+        return;
+      }
+    }
     const userMsg: ChatMessage = {
       id: `m${Date.now()}`,
       fromMe: true,
@@ -653,7 +669,7 @@ export default function Chat() {
         if (!file.type.startsWith("image/")) continue;
         try {
           const url = await compressImageFile(file);
-          sendMediaMessage("image", url);
+          await sendMediaMessage("image", url);
         } catch {
           /* skip */
         }
