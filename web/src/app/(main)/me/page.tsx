@@ -251,6 +251,19 @@ export default function Me() {
               </Link>
             </div>
           )}
+          {effectiveTier !== "guest" && (
+            <Link
+              href="/me/membership"
+              className="mt-2 flex items-center justify-between rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-orange-400/10 px-3 py-2.5"
+            >
+              <span className="text-sm font-semibold">
+                {locale === "en" ? "Membership & VIP" : "会员与 VIP"}
+              </span>
+              <span className="text-xs text-amber-800/80">
+                {locale === "en" ? "Plans →" : "查看方案 →"}
+              </span>
+            </Link>
+          )}
         </div>
 
         <div className="rounded-2xl border border-line bg-surface p-4">

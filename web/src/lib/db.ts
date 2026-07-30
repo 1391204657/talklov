@@ -7,6 +7,7 @@ import type {
 import { getSupabaseBrowser } from "./supabase/client";
 import { ChatMessage, Profile } from "./types";
 import { parseChineseVariants } from "./profile";
+import { isFounderFrozen } from "./entitlements";
 
 // ---- Row shapes as stored in Postgres (snake_case) ----
 export interface DbProfile {
@@ -34,6 +35,13 @@ export interface DbProfile {
   verified: boolean;
   online: boolean;
   phone_e164: string | null;
+  plan?: string | null;
+  plan_expires_at?: string | null;
+  is_founder?: boolean | null;
+  founder_slot?: number | null;
+  founder_last_active_at?: string | null;
+  boost_until?: string | null;
+  stripe_customer_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -84,6 +92,11 @@ export function toProfile(r: DbProfile): Profile {
     online: r.online,
     photoPrivacy: r.photo_privacy,
     chineseVariants: parseChineseVariants(r.chinese_variant),
+    plan: (r.plan as Profile["plan"]) || "free",
+    isFounder: Boolean(r.is_founder),
+    founderSlot: r.founder_slot ?? null,
+    founderFrozen:
+      Boolean(r.is_founder) && isFounderFrozen(r.founder_last_active_at),
   };
 }
 

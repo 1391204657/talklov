@@ -33,6 +33,11 @@ export interface Profile {
   voiceIntroUrl?: string;
   /** Demo / caption text used when no recording exists (TTS fallback). */
   voiceIntroText?: string;
+  /** Paid plan — independent from verified trust tier. */
+  plan?: "free" | "vip" | "founder";
+  isFounder?: boolean;
+  founderSlot?: number | null;
+  founderFrozen?: boolean;
 }
 
 export interface ChatMessage {

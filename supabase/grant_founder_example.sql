@@ -1,0 +1,9 @@
+-- Grant Founder slot to a user (run in SQL Editor after migrate_subscriptions.sql)
+-- Example:
+--   select public.grant_founder('00000000-0000-0000-0000-000000000000'::uuid);
+--
+-- List founders:
+--   select founder_slot, id, name, plan, founder_granted_at
+--   from public.profiles
+--   where is_founder
+--   order by founder_slot;

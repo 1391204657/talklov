@@ -18,6 +18,7 @@ import {
   isAiPersona,
   markAiWelcomeReply,
 } from "@/lib/aiPersonas";
+import FounderBadge from "@/components/FounderBadge";
 import {
   playMessageSound,
   showLocalMessageNotification,
@@ -247,6 +248,13 @@ export default function ProfileDetail() {
                   </svg>
                   已认证
                 </span>
+              )}
+              {profile.isFounder && (
+                <FounderBadge
+                  slot={profile.founderSlot}
+                  frozen={profile.founderFrozen}
+                  size="sm"
+                />
               )}
             </div>
             <div
