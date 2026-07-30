@@ -522,8 +522,8 @@ export default function Chat() {
   };
 
   return (
-    <main className="flex flex-1 flex-col">
-      <header className="flex items-center gap-3 border-b border-line bg-surface/95 px-3 py-2 backdrop-blur">
+    <main className="flex min-h-0 flex-1 flex-col">
+      <header className="flex shrink-0 items-center gap-3 border-b border-line bg-surface/95 px-3 py-2 backdrop-blur">
         <button onClick={() => router.back()} className="px-1 text-xl">
           ←
         </button>
@@ -550,7 +550,7 @@ export default function Chat() {
       </header>
 
       {showSafety && (
-        <div className="flex items-start gap-2 border-b border-warn/30 bg-warn/10 px-4 py-2 text-[12px] text-warn">
+        <div className="flex shrink-0 items-start gap-2 border-b border-warn/30 bg-warn/10 px-4 py-2 text-[12px] text-warn">
           <span>⚠️</span>
           <span className="flex-1">
             安全提醒：任何要求<b>转账、汇款、投资</b>的都是诈骗。请勿在平台外私下交易。
@@ -563,7 +563,7 @@ export default function Chat() {
 
       <div
         ref={listRef}
-        className="flex-1 space-y-3 overflow-y-auto no-scrollbar p-4"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto no-scrollbar p-4"
       >
         {messages.map((m) => (
           <div
@@ -639,8 +639,10 @@ export default function Chat() {
         ))}
       </div>
 
+      {/* Composer pinned to bottom (like profile「打招呼」) */}
+      <div className="shrink-0 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
       {icebreakers && (
-        <div className="animate-fadeUp border-t border-line bg-surface-2/60 p-3">
+        <div className="animate-fadeUp border-b border-line bg-surface-2/60 p-3">
           <div className="mb-2 flex items-center justify-between text-xs">
             <span className="font-medium text-accent">AI 破冰话题</span>
             <button onClick={() => setIcebreakers(null)} className="text-muted">
@@ -670,7 +672,7 @@ export default function Chat() {
       )}
 
       {polish && (
-        <div className="animate-fadeUp border-t border-line bg-surface-2/60 p-3">
+        <div className="animate-fadeUp border-b border-line bg-surface-2/60 p-3">
           <div className="mb-2 flex items-center justify-between text-xs">
             <span className="font-medium text-accent">润色建议</span>
             <button onClick={() => setPolish(null)} className="text-muted">
@@ -705,7 +707,7 @@ export default function Chat() {
         </div>
       )}
 
-      <div className="no-scrollbar flex items-center gap-2 overflow-x-auto border-t border-line px-3 py-1.5 text-xs">
+      <div className="no-scrollbar flex items-center gap-2 overflow-x-auto px-3 py-1.5 text-xs">
         <button
           onClick={() => setAutoTranslate((v) => !v)}
           className={`whitespace-nowrap rounded-full px-3 py-1 ${
@@ -738,7 +740,7 @@ export default function Chat() {
         </button>
       </div>
 
-      <div className="flex items-center gap-2 border-t border-line bg-surface/95 p-3">
+      <div className="flex items-center gap-2 px-3 pb-3 pt-1">
         <button
           onClick={recording ? stopRecording : startRecording}
           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg ${
@@ -769,6 +771,7 @@ export default function Chat() {
         >
           ↑
         </button>
+      </div>
       </div>
 
       {scamWarn && (
