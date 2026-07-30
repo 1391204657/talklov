@@ -254,11 +254,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!sb) return;
 
     const applyUser = async (uid: string | null) => {
+      // No Supabase session: keep offline/demo phone login from localStorage.
+      // Only signOut() should clear tier — otherwise kill-app relaunches wipe login.
+      if (!uid) return;
+
       setUserId(uid);
-      if (!uid) {
-        setTier("guest");
-        return;
-      }
       try {
         const raw = await fetchDbProfile(uid);
         if (raw) {
@@ -273,19 +273,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 : prev.photos?.length
                   ? prev.photos
                   : [],
+            // Keep local phone if DB row has none
+            phoneE164: fromDb.phoneE164 || prev.phoneE164 || "",
             voiceIntroUrl: prev.voiceIntroUrl || "",
           }));
           setTier(raw.verified ? "verified" : "light");
         } else {
-          setTier("light");
+          setTier((t) => (t === "guest" ? "light" : t));
         }
       } catch {
-        setTier("light");
+        setTier((t) => (t === "guest" ? "light" : t));
       }
     };
 
     sb.auth.getUser().then(({ data }) => applyUser(data.user?.id ?? null));
-    const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
+    const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
+      // Ignore transient signed-out noise during token refresh; SIGNED_OUT is explicit
+      if (event === "INITIAL_SESSION" && !session?.user) return;
+      if (event === "SIGNED_OUT") {
+        // Don't force guest here if local demo login exists — signOut() handles it
+        return;
+      }
       applyUser(session?.user?.id ?? null);
     });
     return () => sub.subscription.unsubscribe();

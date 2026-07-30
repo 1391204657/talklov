@@ -22,9 +22,11 @@ function DefaultAvatarIcon() {
 
 /** Top-right profile entry — person silhouette by default; swaps to uploaded photo. */
 export default function MeAvatarButton({ className = "" }: { className?: string }) {
-  const { locale, myProfile, tier, openRegister } = useApp();
+  const { locale, myProfile, tier, userId, openRegister } = useApp();
   const c = tApp(locale);
   const avatar = myProfile.photos[0];
+  const loggedIn =
+    tier !== "guest" || !!userId || !!myProfile.phoneE164;
 
   const face = (
     <span
@@ -39,7 +41,7 @@ export default function MeAvatarButton({ className = "" }: { className?: string 
     </span>
   );
 
-  if (tier === "guest") {
+  if (!loggedIn) {
     return (
       <button
         type="button"

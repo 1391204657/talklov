@@ -83,10 +83,33 @@ export default function Chat() {
   const [listening, setListening] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recSecs, setRecSecs] = useState(0);
+  const [playingId, setPlayingId] = useState<string | null>(null);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recSecsRef = useRef(0);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+
+  function pickRecorderMime(): string | undefined {
+    if (typeof MediaRecorder === "undefined") return undefined;
+    const candidates = [
+      "audio/mp4",
+      "audio/aac",
+      "audio/webm;codecs=opus",
+      "audio/webm",
+    ];
+    return candidates.find((t) => MediaRecorder.isTypeSupported(t));
+  }
+
+  function blobToDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  }
 
   // Opening an AI chat clears unread on the messages list / home badge
   useEffect(() => {
@@ -391,48 +414,111 @@ export default function Chat() {
   // --- Record & send a voice message ---
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
+      const mime = pickRecorderMime();
+      const mr = mime
+        ? new MediaRecorder(stream, { mimeType: mime })
+        : new MediaRecorder(stream);
       chunksRef.current = [];
-      mr.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
+      mr.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
       mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        const url = URL.createObjectURL(blob);
-        setMessages((m) => [
-          ...m,
-          {
-            id: `v${Date.now()}`,
-            fromMe: true,
-            kind: "voice",
-            text: "[语音消息]",
-            audioUrl: url,
-            durationSec: recSecs,
-            time: "刚刚",
-          },
-        ]);
+        const type = mr.mimeType || mime || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
+        const secs = recSecsRef.current;
         stream.getTracks().forEach((t) => t.stop());
+        if (!blob.size) {
+          alert("没录到声音，请按住再试一次。");
+          return;
+        }
+        void (async () => {
+          try {
+            // data URL plays more reliably than blob: on iOS Safari / PWA
+            const url = await blobToDataUrl(blob);
+            setMessages((m) => [
+              ...m,
+              {
+                id: `v${Date.now()}`,
+                fromMe: true,
+                kind: "voice",
+                text: "[语音消息]",
+                audioUrl: url,
+                durationSec: secs,
+                time: "刚刚",
+              },
+            ]);
+          } catch {
+            const url = URL.createObjectURL(blob);
+            setMessages((m) => [
+              ...m,
+              {
+                id: `v${Date.now()}`,
+                fromMe: true,
+                kind: "voice",
+                text: "[语音消息]",
+                audioUrl: url,
+                durationSec: secs,
+                time: "刚刚",
+              },
+            ]);
+          }
+        })();
       };
       recRef.current = mr;
-      mr.start();
+      mr.start(250);
       setRecording(true);
       setRecSecs(0);
-      recTimer.current = setInterval(() => setRecSecs((s) => s + 1), 1000);
+      recSecsRef.current = 0;
+      recTimer.current = setInterval(() => {
+        recSecsRef.current += 1;
+        setRecSecs(recSecsRef.current);
+      }, 1000);
     } catch {
       alert("无法访问麦克风，请检查浏览器权限。");
     }
   };
 
   const stopRecording = () => {
-    recRef.current?.stop();
+    if (recRef.current && recRef.current.state !== "inactive") {
+      recRef.current.stop();
+    }
     setRecording(false);
     if (recTimer.current) clearInterval(recTimer.current);
   };
 
-  const playAudio = (url?: string) => {
-    if (!url) return;
+  const playAudio = async (id: string, url?: string) => {
+    if (!url) {
+      alert("这条语音还不能播放。");
+      return;
+    }
     try {
-      new Audio(url).play();
-    } catch {}
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
+      }
+      if (playingId === id) {
+        setPlayingId(null);
+        return;
+      }
+      const audio = new Audio(url);
+      audioPlayerRef.current = audio;
+      setPlayingId(id);
+      audio.onended = () => setPlayingId(null);
+      audio.onerror = () => {
+        setPlayingId(null);
+        alert("语音播放失败，请再录一条试试。");
+      };
+      await audio.play();
+    } catch {
+      setPlayingId(null);
+      alert("语音播放被拦截，请再点一次，或检查静音开关。");
+    }
   };
 
   return (
@@ -487,14 +573,16 @@ export default function Chat() {
             <div className="max-w-[78%]">
               {m.kind === "voice" ? (
                 <button
-                  onClick={() => playAudio(m.audioUrl)}
+                  type="button"
+                  onClick={() => playAudio(m.id, m.audioUrl)}
                   className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-[15px] ${
                     m.fromMe
                       ? "btn-grad rounded-br-md text-white"
                       : "rounded-bl-md bg-surface-2"
                   }`}
                 >
-                  ▶ <span className="text-sm">语音</span>
+                  {playingId === m.id ? "❚❚" : "▶"}{" "}
+                  <span className="text-sm">语音</span>
                   <span className="opacity-80">
                     {m.durationSec ? `${m.durationSec}″` : ""}
                   </span>
