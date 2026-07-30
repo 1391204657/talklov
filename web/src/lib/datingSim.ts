@@ -121,7 +121,12 @@ export type UserMomentPost = {
   tag?: string;
   /** Duo Dub invite id for「合配」CTA on Moments. */
   duoInviteId?: string;
+  /** Images now; video type reserved for a later release. */
+  media?: { type: "image" | "video"; url: string; alt?: string }[];
 };
+
+/** Max images per moment post (WeChat-style grid). Video comes later. */
+export const MAX_MOMENT_IMAGES = 9;
 
 export function loadUserMoments(): UserMomentPost[] {
   if (typeof window === "undefined") return [];

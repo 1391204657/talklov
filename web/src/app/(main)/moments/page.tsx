@@ -291,6 +291,9 @@ export default function Moments() {
               <p className="mt-3 whitespace-pre-line text-[15px] leading-relaxed">
                 {post.text}
               </p>
+              {post.media && post.media.length > 0 ? (
+                <MediaGrid media={post.media} />
+              ) : null}
               {post.duoInviteId ? (
                 <div className="mt-3 rounded-xl border border-accent/20 bg-accent/5 px-3 py-2 text-xs text-muted">
                   合配邀请卡 · 点「和我合配」录另一边角色
