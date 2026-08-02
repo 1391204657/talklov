@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import ProfileCard from "@/components/ProfileCard";
 import MeAvatarButton from "@/components/MeAvatarButton";
-import { useProfiles } from "@/lib/useProfiles";
+import { isUuid, useProfiles } from "@/lib/useProfiles";
 import {
   HIDE_ACTIVE_CHATS_FROM_DISCOVER,
   listActiveChatPartnerIds,
@@ -26,7 +26,14 @@ export default function Discover() {
   }, [profiles, filter]);
 
   const list = profiles.filter((p) => {
-    if (HIDE_ACTIVE_CHATS_FROM_DISCOVER && activeIds.has(p.id)) return false;
+    // Only hide real users you've already chatted with — keep ~30 virtual demos visible.
+    if (
+      HIDE_ACTIVE_CHATS_FROM_DISCOVER &&
+      activeIds.has(p.id) &&
+      isUuid(p.id)
+    ) {
+      return false;
+    }
     if (filter === "CN") return p.country === "CN";
     if (filter === "US") return p.country === "US";
     if (filter === "online") return p.online;
