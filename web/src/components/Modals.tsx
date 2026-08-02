@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/lib/store";
 import { defaultMyProfile, type MyProfile } from "@/lib/profile";
 import {
@@ -17,6 +17,7 @@ import {
   isValidNational,
   maskE164,
 } from "@/lib/phone";
+import { allowDemoOtp } from "@/lib/authHelpers";
 import { tApp } from "@/lib/appCopy";
 import {
   privacySections,
@@ -24,6 +25,109 @@ import {
   type LegalSection,
 } from "@/lib/legalCopy";
 import type { MarketingLocale } from "@/lib/marketingCopy";
+
+const OTP_LEN = 6;
+
+/** Six empty boxes for email/SMS OTP entry (supports paste). */
+function OtpBoxes({
+  value,
+  onChange,
+  disabled,
+  onComplete,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  disabled?: boolean;
+  onComplete?: (code: string) => void;
+}) {
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const digits = Array.from({ length: OTP_LEN }, (_, i) => value[i] ?? "");
+
+  const focusAt = (i: number) => {
+    const el = refs.current[Math.max(0, Math.min(OTP_LEN - 1, i))];
+    el?.focus();
+    el?.select();
+  };
+
+  const setDigits = (next: string) => {
+    const clean = next.replace(/\D/g, "").slice(0, OTP_LEN);
+    onChange(clean);
+    if (clean.length >= OTP_LEN) onComplete?.(clean);
+  };
+
+  return (
+    <div className="flex justify-center gap-2" role="group" aria-label="OTP">
+      {digits.map((d, i) => (
+        <input
+          key={i}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
+          type="text"
+          inputMode="numeric"
+          autoComplete={i === 0 ? "one-time-code" : "off"}
+          aria-label={`Digit ${i + 1}`}
+          maxLength={1}
+          disabled={disabled}
+          value={d}
+          placeholder="·"
+          onChange={(e) => {
+            const raw = e.target.value.replace(/\D/g, "");
+            if (!raw) {
+              const arr = digits.slice();
+              arr[i] = "";
+              setDigits(arr.join(""));
+              return;
+            }
+            // Paste or multi-digit into one box
+            if (raw.length > 1) {
+              const merged = (value.slice(0, i) + raw).replace(/\D/g, "").slice(0, OTP_LEN);
+              setDigits(merged);
+              focusAt(Math.min(merged.length, OTP_LEN - 1));
+              return;
+            }
+            const arr = digits.slice();
+            arr[i] = raw;
+            const merged = arr.join("").replace(/\D/g, "").slice(0, OTP_LEN);
+            setDigits(merged);
+            if (i < OTP_LEN - 1) focusAt(i + 1);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Backspace") {
+              if (digits[i]) {
+                const arr = digits.slice();
+                arr[i] = "";
+                setDigits(arr.join(""));
+              } else if (i > 0) {
+                focusAt(i - 1);
+                const arr = digits.slice();
+                arr[i - 1] = "";
+                setDigits(arr.join(""));
+              }
+              e.preventDefault();
+            } else if (e.key === "ArrowLeft" && i > 0) {
+              focusAt(i - 1);
+              e.preventDefault();
+            } else if (e.key === "ArrowRight" && i < OTP_LEN - 1) {
+              focusAt(i + 1);
+              e.preventDefault();
+            } else if (e.key === "Enter" && value.length >= OTP_LEN) {
+              onComplete?.(value);
+            }
+          }}
+          onPaste={(e) => {
+            const pasted = e.clipboardData.getData("text").replace(/\D/g, "");
+            if (!pasted) return;
+            e.preventDefault();
+            setDigits(pasted);
+            focusAt(Math.min(pasted.length, OTP_LEN) - 1);
+          }}
+          className="h-12 w-10 rounded-xl border border-line bg-surface-2 text-center text-lg font-semibold tabular-nums outline-none focus:border-accent disabled:opacity-40 sm:h-14 sm:w-11"
+        />
+      ))}
+    </div>
+  );
+}
 
 function Sheet({
   children,
@@ -103,6 +207,7 @@ function LegalInline({
 function RegisterModal() {
   const {
     registerOpen,
+    registerStartStep,
     closeModals,
     completeRegister,
     pendingAction,
@@ -110,15 +215,22 @@ function RegisterModal() {
     openVerify,
     sendPhoneOtp,
     verifyPhoneOtp,
+    signInWithOAuth,
+    sendEmailOtp,
+    verifyEmailOtp,
     setLocale,
+    setRegion,
     locale,
+    region,
   } = useApp();
   const copy = tApp(locale);
-  const [step, setStep] = useState(0); // 0 phone, 1 otp, 2 basics, 3 about, 4 photos
+  const [step, setStep] = useState(0); // 0 methods, 1 otp, 2 basics, 3 about, 4 photos
+  const [authChannel, setAuthChannel] = useState<"phone" | "email">("phone");
   const [draft, setDraft] = useState<MyProfile>({ ...defaultMyProfile });
-  const [dial, setDial] = useState<DialCode>("+86");
+  const [dial, setDial] = useState<DialCode>("+1");
   const [national, setNational] = useState("");
   const [e164, setE164] = useState("");
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [isNewPhone, setIsNewPhone] = useState(true);
   const [authBusy, setAuthBusy] = useState(false);
@@ -126,18 +238,48 @@ function RegisterModal() {
   const [cooldown, setCooldown] = useState(0);
   const [agreedLegal, setAgreedLegal] = useState(false);
   const [legalView, setLegalView] = useState<"terms" | "privacy" | null>(null);
+  const [showPhoneForm, setShowPhoneForm] = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(false);
+
+  const authRegion: "CN" | "US" = region === "CN" ? "CN" : "US";
 
   useEffect(() => {
     if (!registerOpen) {
       setStep(0);
       setNational("");
+      setEmail("");
       setOtp("");
       setAuthErr(null);
       setAgreedLegal(false);
       setLegalView(null);
-      setDraft({ ...defaultMyProfile, ...myProfile, phoneE164: myProfile.phoneE164 || "" });
+      setShowPhoneForm(false);
+      setShowEmailForm(false);
+      setDraft({
+        ...defaultMyProfile,
+        ...myProfile,
+        phoneE164: myProfile.phoneE164 || "",
+      });
+      return;
     }
-  }, [registerOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (registerStartStep >= 2) {
+      setStep(registerStartStep);
+      setDraft({
+        ...defaultMyProfile,
+        ...myProfile,
+        phoneE164: myProfile.phoneE164 || "",
+      });
+      return;
+    }
+    if (region === "CN") {
+      setDial("+86");
+      setShowEmailForm(true);
+      setShowPhoneForm(false);
+    } else {
+      setDial("+1");
+      setShowPhoneForm(false);
+      setShowEmailForm(false);
+    }
+  }, [registerOpen, registerStartStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -150,13 +292,31 @@ function RegisterModal() {
   const patch = (p: Partial<MyProfile>) =>
     setDraft((d) => ({ ...d, ...p }));
 
+  const switchAuthRegion = (r: "CN" | "US") => {
+    setRegion(r === "CN" ? "CN" : "global");
+    setLocale(r === "CN" ? "zh" : "en");
+    setDial(r === "CN" ? "+86" : "+1");
+    setShowPhoneForm(r === "US");
+    setShowEmailForm(r === "CN");
+    setAuthErr(null);
+    if (!draft.basicsLocked) {
+      patch({
+        country: r === "CN" ? "CN" : "US",
+        nativeLang: r === "CN" ? "中文" : "English",
+        learningLang: r === "CN" ? "English" : "中文",
+        chineseVariants: r === "CN" ? ["mandarin"] : [],
+      });
+    }
+  };
+
   const onDialChange = (d: DialCode) => {
     setDial(d);
     const meta = dialMeta(d);
     setLocale(meta.locale);
+    setRegion(meta.country === "CN" ? "CN" : "global");
     if (!draft.basicsLocked) {
       patch({
-        country: meta.country,
+        country: meta.country === "OTHER" ? draft.country : meta.country,
         nativeLang: meta.locale === "zh" ? "中文" : "English",
         learningLang: meta.locale === "zh" ? "English" : "中文",
         chineseVariants: meta.locale === "zh" ? ["mandarin"] : [],
@@ -164,11 +324,25 @@ function RegisterModal() {
     }
   };
 
-  const sendCode = async () => {
+  const requireLegal = () => {
     if (!agreedLegal) {
       setAuthErr(copy.agreeRequired);
-      return;
+      return false;
     }
+    return true;
+  };
+
+  const onOAuth = async (provider: "google" | "apple") => {
+    if (!requireLegal()) return;
+    setAuthErr(null);
+    setAuthBusy(true);
+    const res = await signInWithOAuth(provider);
+    setAuthBusy(false);
+    if (!res.ok) setAuthErr(res.error ?? "OAuth failed");
+  };
+
+  const sendCode = async () => {
+    if (!requireLegal()) return;
     setAuthErr(null);
     setAuthBusy(true);
     const res = await sendPhoneOtp(dial, national);
@@ -177,6 +351,7 @@ function RegisterModal() {
       setAuthErr(res.error ?? "发送失败");
       return;
     }
+    setAuthChannel("phone");
     setE164(res.e164 ?? "");
     setIsNewPhone(res.isNew !== false);
     setStep(1);
@@ -184,38 +359,71 @@ function RegisterModal() {
     setOtp("");
   };
 
-  const verifyCode = async () => {
+  const sendEmailCode = async () => {
+    if (!requireLegal()) return;
     setAuthErr(null);
     setAuthBusy(true);
-    const res = await verifyPhoneOtp(e164, otp);
+    const res = await sendEmailOtp(email);
+    setAuthBusy(false);
+    if (!res.ok) {
+      setAuthErr(res.error ?? "发送失败");
+      return;
+    }
+    setAuthChannel("email");
+    setStep(1);
+    setCooldown(60);
+    setOtp("");
+  };
+
+  const verifyCode = async (codeOverride?: string) => {
+    const code = (codeOverride ?? otp).replace(/\D/g, "");
+    setAuthErr(null);
+    setAuthBusy(true);
+    const res =
+      authChannel === "email"
+        ? await verifyEmailOtp(email, code)
+        : await verifyPhoneOtp(e164, code);
     setAuthBusy(false);
     if (!res.ok) {
       setAuthErr(res.error ?? "验证失败");
       return;
     }
-    const meta = dialMeta(dial);
-    setDraft((d) => ({
-      ...d,
-      phoneE164: e164,
-      country: d.basicsLocked ? d.country : meta.country,
-      nativeLang: d.basicsLocked
-        ? d.nativeLang
-        : meta.locale === "zh"
-        ? "中文"
-        : "English",
-      learningLang: d.basicsLocked
-        ? d.learningLang
-        : meta.locale === "zh"
-        ? "English"
-        : "中文",
-      chineseVariants: d.basicsLocked
-        ? d.chineseVariants
-        : meta.locale === "zh"
-        ? d.chineseVariants.length
+    if (authChannel === "phone") {
+      const meta = dialMeta(dial);
+      setDraft((d) => ({
+        ...d,
+        phoneE164: e164,
+        country: d.basicsLocked
+          ? d.country
+          : meta.country === "OTHER"
+            ? d.country
+            : meta.country,
+        nativeLang: d.basicsLocked
+          ? d.nativeLang
+          : meta.locale === "zh"
+            ? "中文"
+            : "English",
+        learningLang: d.basicsLocked
+          ? d.learningLang
+          : meta.locale === "zh"
+            ? "English"
+            : "中文",
+        chineseVariants: d.basicsLocked
           ? d.chineseVariants
-          : ["mandarin"]
-        : [],
-    }));
+          : meta.locale === "zh"
+            ? d.chineseVariants.length
+              ? d.chineseVariants
+              : ["mandarin"]
+            : [],
+      }));
+    } else if (!draft.basicsLocked) {
+      setDraft((d) => ({
+        ...d,
+        country: authRegion === "CN" ? "CN" : d.country || "US",
+        nativeLang: authRegion === "CN" ? "中文" : d.nativeLang || "English",
+        learningLang: authRegion === "CN" ? "English" : d.learningLang || "中文",
+      }));
+    }
     if (res.needProfile) {
       setStep(2);
     } else {
@@ -276,32 +484,32 @@ function RegisterModal() {
               : copy.authHint}
           </p>
 
+          <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1">
+            <button
+              type="button"
+              onClick={() => switchAuthRegion("CN")}
+              className={`rounded-lg py-2 text-sm font-medium transition ${
+                authRegion === "CN"
+                  ? "bg-surface text-foreground shadow-sm"
+                  : "text-muted"
+              }`}
+            >
+              {copy.authRegionCN}
+            </button>
+            <button
+              type="button"
+              onClick={() => switchAuthRegion("US")}
+              className={`rounded-lg py-2 text-sm font-medium transition ${
+                authRegion === "US"
+                  ? "bg-surface text-foreground shadow-sm"
+                  : "text-muted"
+              }`}
+            >
+              {copy.authRegionUS}
+            </button>
+          </div>
+
           <div className="mt-5 space-y-3">
-            <div className="flex gap-2">
-              <select
-                value={dial}
-                onChange={(e) => onDialChange(e.target.value as DialCode)}
-                className="w-[7.5rem] shrink-0 rounded-xl border border-line bg-surface-2 px-2 py-3 text-sm outline-none focus:border-accent"
-              >
-                {DIAL_OPTIONS.map((o) => (
-                  <option key={o.dial} value={o.dial}>
-                    {o.flag} {o.dial}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="tel"
-                inputMode="numeric"
-                value={national}
-                onChange={(e) => setNational(e.target.value)}
-                placeholder={dial === "+86" ? "手机号" : "Phone number"}
-                autoComplete="tel-national"
-                onKeyDown={(e) =>
-                  e.key === "Enter" && phoneOk && agreedLegal && sendCode()
-                }
-                className="min-w-0 flex-1 rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
-              />
-            </div>
             <label className="flex items-start gap-2.5 rounded-xl border border-line bg-surface-2/60 px-3 py-3 text-left text-[12px] leading-relaxed text-muted">
               <input
                 type="checkbox"
@@ -339,14 +547,175 @@ function RegisterModal() {
                 </button>
               </span>
             </label>
-            {authErr && <p className="text-sm text-danger">{authErr}</p>}
+
+            {authRegion === "US" && (
+              <button
+                type="button"
+                disabled={authBusy || !agreedLegal}
+                onClick={() => void onOAuth("google")}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface py-3.5 text-sm font-semibold disabled:opacity-40"
+              >
+                <span className="text-base font-bold text-[#4285F4]">G</span>
+                {copy.continueGoogle}
+              </button>
+            )}
+
             <button
-              disabled={authBusy || !phoneOk || !agreedLegal}
-              onClick={sendCode}
-              className="w-full rounded-xl bg-[#1c1c1f] py-3.5 font-semibold text-white disabled:opacity-40"
+              type="button"
+              disabled={authBusy || !agreedLegal}
+              onClick={() => void onOAuth("apple")}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1c1c1f] py-3.5 text-sm font-semibold text-white disabled:opacity-40"
             >
-              {authBusy ? copy.sending : copy.getCode}
+              <span className="text-lg leading-none"></span>
+              {copy.continueApple}
             </button>
+
+            <div className="flex items-center gap-3 py-0.5">
+              <div className="h-px flex-1 bg-line" />
+              <span className="text-[11px] text-muted">{copy.orDivider}</span>
+              <div className="h-px flex-1 bg-line" />
+            </div>
+
+            {authRegion === "CN" && (
+              <>
+                {!showEmailForm ? (
+                  <button
+                    type="button"
+                    disabled={!agreedLegal}
+                    onClick={() => {
+                      setShowEmailForm(true);
+                      setShowPhoneForm(false);
+                      setAuthErr(null);
+                    }}
+                    className="w-full rounded-xl border border-line py-3.5 text-sm font-semibold disabled:opacity-40"
+                  >
+                    {copy.continueEmail}
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder={copy.emailPlaceholder}
+                      autoComplete="email"
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && email.trim() && sendEmailCode()
+                      }
+                      className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
+                    />
+                    <button
+                      type="button"
+                      disabled={authBusy || !email.trim() || !agreedLegal}
+                      onClick={() => void sendEmailCode()}
+                      className="w-full rounded-xl bg-[#1c1c1f] py-3.5 font-semibold text-white disabled:opacity-40"
+                    >
+                      {authBusy ? copy.sending : copy.getEmailCode}
+                    </button>
+                  </div>
+                )}
+                <p className="text-center text-[11px] leading-relaxed text-muted">
+                  {copy.cnSmsUnavailable}
+                </p>
+              </>
+            )}
+
+            {authRegion === "US" && (
+              <>
+                {!showPhoneForm ? (
+                  <button
+                    type="button"
+                    disabled={!agreedLegal}
+                    onClick={() => {
+                      setShowPhoneForm(true);
+                      setShowEmailForm(false);
+                      setDial("+1");
+                      setAuthErr(null);
+                    }}
+                    className="w-full rounded-xl border border-line py-3.5 text-sm font-semibold disabled:opacity-40"
+                  >
+                    {copy.continuePhone}
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <select
+                        value={dial}
+                        onChange={(e) =>
+                          onDialChange(e.target.value as DialCode)
+                        }
+                        className="w-[7.5rem] shrink-0 rounded-xl border border-line bg-surface-2 px-2 py-3 text-sm outline-none focus:border-accent"
+                      >
+                        {DIAL_OPTIONS.filter((o) => o.dial !== "+86").map(
+                          (o) => (
+                            <option key={o.dial} value={o.dial}>
+                              {o.flag} {o.dial}
+                            </option>
+                          )
+                        )}
+                      </select>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        value={national}
+                        onChange={(e) => setNational(e.target.value)}
+                        placeholder="Phone number"
+                        autoComplete="tel-national"
+                        onKeyDown={(e) =>
+                          e.key === "Enter" &&
+                          phoneOk &&
+                          agreedLegal &&
+                          sendCode()
+                        }
+                        className="min-w-0 flex-1 rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={authBusy || !phoneOk || !agreedLegal}
+                      onClick={() => void sendCode()}
+                      className="w-full rounded-xl bg-[#1c1c1f] py-3.5 font-semibold text-white disabled:opacity-40"
+                    >
+                      {authBusy ? copy.sending : copy.getCode}
+                    </button>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  disabled={!agreedLegal}
+                  onClick={() => {
+                    setShowEmailForm((v) => !v);
+                    setShowPhoneForm(false);
+                    setAuthErr(null);
+                  }}
+                  className="w-full text-center text-[12px] text-muted underline-offset-2 hover:underline disabled:opacity-40"
+                >
+                  {copy.continueEmail}
+                </button>
+                {showEmailForm && (
+                  <div className="space-y-2">
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder={copy.emailPlaceholder}
+                      autoComplete="email"
+                      className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
+                    />
+                    <button
+                      type="button"
+                      disabled={authBusy || !email.trim() || !agreedLegal}
+                      onClick={() => void sendEmailCode()}
+                      className="w-full rounded-xl border border-line py-3 font-semibold disabled:opacity-40"
+                    >
+                      {authBusy ? copy.sending : copy.getEmailCode}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {authErr && <p className="text-sm text-danger">{authErr}</p>}
             <p className="text-center text-[11px] text-muted">
               {copy.emailOptional}
             </p>
@@ -356,50 +725,56 @@ function RegisterModal() {
 
       {!legalView && step === 1 && (
         <div className="pb-2">
-          <h3 className="text-xl font-bold">输入验证码</h3>
+          <h3 className="text-xl font-bold">{copy.enterOtp}</h3>
           <p className="mt-1 text-sm text-muted">
-            已发送至 {maskE164(e164)}
-            {isNewPhone ? " · 新账号" : " · 登录已有账号"}
+            {authChannel === "email"
+              ? copy.otpSentEmail(email.trim())
+              : copy.otpSentPhone(maskE164(e164), isNewPhone)}
           </p>
           <div className="mt-5 space-y-3">
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
+            <OtpBoxes
               value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
-              placeholder="6 位验证码"
-              onKeyDown={(e) => e.key === "Enter" && otp.length >= 4 && verifyCode()}
-              className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 text-center text-lg tracking-[0.35em] outline-none focus:border-accent"
+              disabled={authBusy}
+              onChange={(next) => {
+                setOtp(next);
+                setAuthErr(null);
+              }}
+              onComplete={(code) => void verifyCode(code)}
             />
-            <p className="text-center text-[11px] text-muted">
-              未接短信时可用演示码 <span className="font-mono text-foreground">{DEMO_OTP}</span>
-              （未开通 SMS 时）
-            </p>
+            {authChannel === "phone" && allowDemoOtp() && (
+              <p className="text-center text-[11px] text-muted">
+                {copy.demoOtpHint}{" "}
+                <span className="font-mono text-foreground">{DEMO_OTP}</span>
+              </p>
+            )}
             {authErr && <p className="text-sm text-danger">{authErr}</p>}
             <button
-              disabled={authBusy || otp.length < 4}
-              onClick={verifyCode}
+              disabled={authBusy || otp.length < OTP_LEN}
+              onClick={() => void verifyCode()}
               className="w-full rounded-xl bg-[#1c1c1f] py-3.5 font-semibold text-white disabled:opacity-40"
             >
-              {authBusy ? "验证中…" : "验证并继续"}
+              {authBusy ? copy.verifying : copy.verifyContinue}
             </button>
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => {
                   setStep(0);
                   setAuthErr(null);
                 }}
                 className="flex-1 rounded-xl border border-line py-2.5 text-sm text-muted"
               >
-                改号码
+                {authChannel === "email" ? copy.changeEmail : copy.changePhone}
               </button>
               <button
+                type="button"
                 disabled={cooldown > 0 || authBusy}
-                onClick={sendCode}
+                onClick={() =>
+                  void (authChannel === "email" ? sendEmailCode() : sendCode())
+                }
                 className="flex-1 rounded-xl border border-line py-2.5 text-sm disabled:opacity-40"
               >
-                {cooldown > 0 ? `${cooldown}s 后重发` : "重新发送"}
+                {cooldown > 0 ? copy.resendIn(cooldown) : copy.resendCode}
               </button>
             </div>
           </div>
@@ -492,38 +867,246 @@ function RegisterModal() {
 }
 
 function VerifyModal() {
-  const { verifyOpen, closeModals, completeVerify } = useApp();
+  const { verifyOpen, closeModals, refreshTrustTier, locale, userId, tier } =
+    useApp();
+  const en = locale === "en";
+  const [preview, setPreview] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [adminNote, setAdminNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [loadingStatus, setLoadingStatus] = useState(false);
+  const [flashEnabled, setFlashEnabled] = useState(false);
+  const [useFlash, setUseFlash] = useState(false);
+  const [FlashUI, setFlashUI] = useState<typeof import("@/components/FlashCheck").default | null>(
+    null
+  );
+
+  useEffect(() => {
+    if (!verifyOpen || !userId) return;
+    let cancelled = false;
+    setLoadingStatus(true);
+    setErr(null);
+    setUseFlash(false);
+    (async () => {
+      try {
+        await refreshTrustTier();
+        const [statusRes, cfgRes] = await Promise.all([
+          fetch("/api/verify/status"),
+          fetch("/api/verify/liveness/config"),
+        ]);
+        const data = await statusRes.json();
+        const cfg = await cfgRes.json();
+        if (cancelled) return;
+        if (statusRes.ok) {
+          setStatus(data.status || (data.verified ? "approved" : null));
+          setAdminNote(data.request?.adminNote || null);
+        }
+        setFlashEnabled(Boolean(cfg.enabled));
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setLoadingStatus(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [verifyOpen, userId, refreshTrustTier]);
+
+  useEffect(() => {
+    if (!useFlash || FlashUI) return;
+    void import("@/components/FlashCheck").then((m) => setFlashUI(() => m.default));
+  }, [useFlash, FlashUI]);
+
   if (!verifyOpen) return null;
+
+  const alreadyVerified = tier === "verified" || status === "approved";
+  const pending = status === "pending";
+  const title = en ? "Flash Check" : "真人闪验";
+  const hint = en
+    ? "A quick on-camera check to confirm you’re a real person. No government ID. You’ll get a verified badge."
+    : "对着镜头做几个小动作，确认是真人本人。不采集证件。通过后展示「✓ 已认证」徽章。";
+
+  const onPick = async (file: File | null) => {
+    if (!file) return;
+    setErr(null);
+    try {
+      const { compressImageFile } = await import("@/lib/photoUpload");
+      const url = await compressImageFile(file);
+      setPreview(url);
+    } catch {
+      setErr(en ? "Could not read photo" : "无法读取照片");
+    }
+  };
+
+  const onSubmit = async () => {
+    if (!preview) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/verify/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selfieDataUrl: preview }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || (en ? "Submit failed" : "提交失败"));
+      setStatus("pending");
+      setPreview(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : en ? "Submit failed" : "提交失败");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <Sheet onClose={closeModals}>
-      <h3 className="text-xl font-bold">完成真人认证 🛡️</h3>
-      <p className="mt-1 text-sm text-muted">
-        通过后资料会展示「✓ 已认证」标签，信任度更高。只做自拍活体，不采集证件实名。
-      </p>
-      <ul className="mt-4 space-y-2 text-sm">
-        <li className="flex items-center gap-2">
-          <span>📸</span> 自拍活体检测（确认是真人本人）
-        </li>
-        <li className="flex items-center gap-2">
-          <span>✅</span> 获得认证徽章，展示给其他用户
-        </li>
-        <li className="flex items-center gap-2 text-muted">
-          <span>🔒</span> 自拍仅用于比对，不公开展示
-        </li>
-      </ul>
-      <button
-        onClick={completeVerify}
-        className="btn-grad mt-6 w-full rounded-xl py-3 font-semibold"
-      >
-        开始真人认证（模拟）
-      </button>
-      <button
-        onClick={closeModals}
-        className="mt-2 w-full rounded-xl py-2 text-sm text-muted"
-      >
-        稍后再说
-      </button>
+      <h3 className="text-xl font-bold">
+        {title} ✨
+      </h3>
+      <p className="mt-1 text-sm text-muted">{hint}</p>
+
+      {loadingStatus ? (
+        <p className="mt-4 text-sm text-muted">{en ? "Checking…" : "查询状态…"}</p>
+      ) : alreadyVerified ? (
+        <p className="mt-4 rounded-xl bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-200">
+          {en ? "Flash Check complete — you’re verified." : "闪验已通过，你已获得认证徽章。"}
+        </p>
+      ) : pending ? (
+        <p className="mt-4 rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
+          {en
+            ? "Flash Check submitted — waiting for a quick review."
+            : "闪验已提交，等待人工复核。通过后即可解锁完整功能。"}
+        </p>
+      ) : useFlash && FlashUI ? (
+        <FlashUI
+          en={en}
+          onApproved={async () => {
+            await refreshTrustTier();
+            setStatus("approved");
+            setUseFlash(false);
+          }}
+          onPending={() => {
+            setStatus("pending");
+            setUseFlash(false);
+          }}
+          onError={(message) => {
+            setErr(message);
+            setUseFlash(false);
+          }}
+          onCancel={() => setUseFlash(false)}
+        />
+      ) : (
+        <>
+          <ul className="mt-4 space-y-2 text-sm">
+            <li className="flex items-center gap-2">
+              <span>✨</span>
+              {en
+                ? "Flash Check: short motion selfie (not public)"
+                : "闪验：几秒动态自拍（不公开展示）"}
+            </li>
+            <li className="flex items-center gap-2">
+              <span>✅</span>
+              {en ? "Verified badge after you pass" : "通过后获得认证徽章"}
+            </li>
+            <li className="flex items-center gap-2 text-muted">
+              <span>🔒</span>
+              {en ? "No government ID required" : "不采集证件实名"}
+            </li>
+          </ul>
+
+          {status === "rejected" && (
+            <p className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-200">
+              {en ? "Previous Flash Check didn’t pass." : "上次闪验未通过。"}
+              {adminNote ? ` ${adminNote}` : ""}
+              {en ? " You can try again." : " 可重新尝试。"}
+            </p>
+          )}
+
+          {err && (
+            <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{err}</p>
+          )}
+
+          {flashEnabled ? (
+            <button
+              type="button"
+              onClick={() => {
+                setErr(null);
+                setUseFlash(true);
+              }}
+              className="btn-grad mt-4 w-full rounded-xl py-3 font-semibold"
+            >
+              {en ? "Start Flash Check" : "开始闪验"}
+            </button>
+          ) : (
+            <>
+              <p className="mt-3 text-xs text-muted">
+                {en
+                  ? "Flash Check service offline — use secure selfie upload."
+                  : "闪验服务未开通时，可走安全自拍通道。"}
+              </p>
+              <label className="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-black/15 bg-black/[0.03] px-4 py-6 text-sm dark:border-white/15 dark:bg-white/[0.04]">
+                <span className="font-medium">
+                  {preview
+                    ? en
+                      ? "Tap to retake"
+                      : "点击重拍"
+                    : en
+                      ? "Take / upload selfie"
+                      : "拍摄或上传自拍"}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="user"
+                  className="hidden"
+                  onChange={(e) => void onPick(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              {preview && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={preview}
+                  alt="selfie preview"
+                  className="mt-3 max-h-56 w-full rounded-xl object-contain bg-black/5"
+                />
+              )}
+              <button
+                type="button"
+                disabled={!preview || busy}
+                onClick={() => void onSubmit()}
+                className="btn-grad mt-4 w-full rounded-xl py-3 font-semibold disabled:opacity-40"
+              >
+                {busy
+                  ? en
+                    ? "Submitting…"
+                    : "提交中…"
+                  : en
+                    ? "Submit for review"
+                    : "提交审核"}
+              </button>
+            </>
+          )}
+        </>
+      )}
+
+      {!useFlash && (
+        <button
+          type="button"
+          onClick={closeModals}
+          className="mt-2 w-full rounded-xl py-2 text-sm text-muted"
+        >
+          {alreadyVerified || pending
+            ? en
+              ? "Close"
+              : "关闭"
+            : en
+              ? "Later"
+              : "稍后再说"}
+        </button>
+      )}
     </Sheet>
   );
 }

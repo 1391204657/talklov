@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   ReactNode,
 } from "react";
@@ -13,10 +14,13 @@ import { isSupabaseConfigured } from "./supabase/config";
 import { getSupabaseBrowser } from "./supabase/client";
 import {
   fetchDbProfile,
+  fetchMyProfileSecrets,
   dbToMyPartial,
   myProfileToDbPatch,
   upsertMyProfile,
+  isPhoneTaken,
 } from "./db";
+import { fetchMyBanStatus } from "./moderation";
 import { defaultMyProfile, type MyProfile } from "./profile";
 import {
   DEMO_OTP,
@@ -25,6 +29,12 @@ import {
   isValidNational,
   toE164,
 } from "./phone";
+import {
+  allowDemoOtp,
+  authCallbackUrl,
+  isValidEmail,
+  type OAuthProvider,
+} from "./authHelpers";
 import {
   defaultNotifyPrefs,
   type NotifyPrefs,
@@ -74,7 +84,11 @@ interface AppState {
   myProfile: MyProfile;
   configured: boolean;
   userId: string | null;
+  /** Auth email from Supabase session (OAuth / email login / linked). */
+  authEmail: string | null;
   registerOpen: boolean;
+  /** When opening register modal, jump to this step (2 = profile basics). */
+  registerStartStep: number;
   verifyOpen: boolean;
   pendingAction: string | null;
   pendingHelloId: string | null;
@@ -84,13 +98,26 @@ interface AppState {
   clearPendingHello: () => void;
   completeRegister: (p: Partial<MyProfile>) => void;
   updateMyProfile: (p: Partial<MyProfile>) => void;
-  completeVerify: () => void;
-  /** Optional legacy / future email bind */
+  /** Refresh trust tier from DB after admin approval (no client self-verify). */
+  refreshTrustTier: () => Promise<void>;
+  /** Password email auth (legacy); prefer OTP / OAuth. */
   emailAuth: (
     mode: "signin" | "signup",
     email: string,
     password: string
   ) => Promise<{ ok: boolean; error?: string }>;
+  signInWithOAuth: (
+    provider: OAuthProvider
+  ) => Promise<{ ok: boolean; error?: string }>;
+  sendEmailOtp: (
+    email: string
+  ) => Promise<{ ok: boolean; error?: string }>;
+  verifyEmailOtp: (
+    email: string,
+    code: string
+  ) => Promise<{ ok: boolean; error?: string; needProfile?: boolean }>;
+  /** Link / change email on an existing session (sends confirmation). */
+  linkEmail: (email: string) => Promise<{ ok: boolean; error?: string }>;
   sendPhoneOtp: (
     dial: DialCode,
     national: string
@@ -110,6 +137,10 @@ interface AppState {
   setNotifyPrefs: (p: Partial<NotifyPrefs>) => Promise<{ ok: boolean; error?: string }>;
   applyUnreadBadge: (count: number) => void;
   reset: () => void;
+  /** Soft-ban status from am_i_banned RPC */
+  isBanned: boolean;
+  banReason: string | null;
+  refreshBanStatus: () => Promise<void>;
 }
 
 const AppCtx = createContext<AppState | null>(null);
@@ -127,12 +158,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [locale, setLocale] = useState<Locale>("zh");
   const [myProfile, setMyProfile] = useState<MyProfile>(defaultMyProfile);
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [registerStartStep, setRegisterStartStep] = useState(0);
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [pendingHelloId, setPendingHelloId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [authEmail, setAuthEmail] = useState<string | null>(null);
   const [notifyPrefs, setNotifyPrefsState] = useState<NotifyPrefs>(defaultNotifyPrefs);
   const [hydrated, setHydrated] = useState(false);
+  const [isBanned, setIsBanned] = useState(false);
+  const [banReason, setBanReason] = useState<string | null>(null);
+  const registerOpenRef = useRef(false);
+  registerOpenRef.current = registerOpen;
+
+  const profileNeedsBasics = (name?: string | null, age?: number | null) =>
+    !(name && String(name).trim()) || age == null || age < 18;
+
+  const refreshBanStatus = async () => {
+    if (!userId) {
+      setIsBanned(false);
+      setBanReason(null);
+      return;
+    }
+    const s = await fetchMyBanStatus();
+    setIsBanned(s.banned);
+    setBanReason(s.banReason);
+  };
 
   useEffect(() => {
     try {
@@ -258,14 +309,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const sb = getSupabaseBrowser();
     if (!sb) return;
 
-    const applyUser = async (uid: string | null) => {
+    const applyUser = async (
+      uid: string | null,
+      email?: string | null
+    ): Promise<boolean> => {
       // No Supabase session: keep offline/demo phone login from localStorage.
       // Only signOut() should clear tier — otherwise kill-app relaunches wipe login.
-      if (!uid) return;
+      if (!uid) return false;
 
       setUserId(uid);
+      if (email !== undefined) setAuthEmail(email || null);
       try {
-        const raw = await fetchDbProfile(uid);
+        const [raw, secrets] = await Promise.all([
+          fetchDbProfile(uid),
+          fetchMyProfileSecrets().catch(() => ({
+            phoneE164: "",
+            stripeCustomerId: null,
+          })),
+        ]);
         if (raw) {
           const fromDb = dbToMyPartial(raw);
           setMyProfile((prev) => ({
@@ -278,28 +339,79 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 : prev.photos?.length
                   ? prev.photos
                   : [],
-            // Keep local phone if DB row has none
-            phoneE164: fromDb.phoneE164 || prev.phoneE164 || "",
+            // Phone only via my_profile_secrets RPC (column revoked on profiles)
+            phoneE164:
+              secrets.phoneE164 || fromDb.phoneE164 || prev.phoneE164 || "",
             voiceIntroUrl: prev.voiceIntroUrl || "",
           }));
           setTier(raw.verified ? "verified" : "light");
-        } else {
-          setTier((t) => (t === "guest" ? "light" : t));
+          const ban = await fetchMyBanStatus();
+          setIsBanned(ban.banned);
+          setBanReason(ban.banReason);
+          return profileNeedsBasics(raw.name, raw.age);
         }
+        setTier((t) => (t === "guest" ? "light" : t));
+        setIsBanned(false);
+        setBanReason(null);
+        return true;
       } catch {
         setTier((t) => (t === "guest" ? "light" : t));
+        return false;
       }
     };
 
-    sb.auth.getUser().then(({ data }) => applyUser(data.user?.id ?? null));
+    const finishOAuthLanding = (needProfile: boolean, event: string) => {
+      if (
+        needProfile &&
+        (event === "SIGNED_IN" ||
+          event === "USER_UPDATED" ||
+          event === "INITIAL_SESSION") &&
+        !registerOpenRef.current
+      ) {
+        setRegisterStartStep(2);
+        setRegisterOpen(true);
+      }
+      // Clean ?auth=1 from URL after session applied
+      try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has("auth") || url.searchParams.has("auth_error")) {
+          url.searchParams.delete("auth");
+          url.searchParams.delete("auth_error");
+          url.searchParams.delete("msg");
+          window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
+    sb.auth.getUser().then(async ({ data }) => {
+      const need = await applyUser(
+        data.user?.id ?? null,
+        data.user?.email ?? null
+      );
+      if (
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("auth") === "1"
+      ) {
+        finishOAuthLanding(need, "INITIAL_SESSION");
+      }
+    });
     const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
       // Ignore transient signed-out noise during token refresh; SIGNED_OUT is explicit
       if (event === "INITIAL_SESSION" && !session?.user) return;
       if (event === "SIGNED_OUT") {
         // Don't force guest here if local demo login exists — signOut() handles it
+        setAuthEmail(null);
         return;
       }
-      applyUser(session?.user?.id ?? null);
+      void (async () => {
+        const need = await applyUser(
+          session?.user?.id ?? null,
+          session?.user?.email ?? null
+        );
+        finishOAuthLanding(need, event);
+      })();
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -307,6 +419,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const openRegister = (action?: string, helloId?: string) => {
     setPendingAction(action ?? null);
     if (helloId) setPendingHelloId(helloId);
+    setRegisterStartStep(0);
     setVerifyOpen(false);
     setRegisterOpen(true);
   };
@@ -318,6 +431,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
   const closeModals = () => {
     setRegisterOpen(false);
+    setRegisterStartStep(0);
     setVerifyOpen(false);
   };
 
@@ -357,13 +471,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setRegisterOpen(false);
   };
 
-  const completeVerify = () => {
-    setTier("verified");
-    setVerifyOpen(false);
-    if (isSupabaseConfigured && userId) {
-      upsertMyProfile({ id: userId, verified: true, tier: "verified" }).catch(
-        () => {}
-      );
+  const refreshTrustTier = async () => {
+    if (!isSupabaseConfigured || !userId) return;
+    try {
+      const raw = await fetchDbProfile(userId);
+      if (raw) setTier(raw.verified ? "verified" : "light");
+    } catch {
+      /* ignore */
     }
   };
 
@@ -379,7 +493,134 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ? await sb.auth.signUp({ email, password })
         : await sb.auth.signInWithPassword({ email, password });
     if (error) return { ok: false, error: error.message };
-    if (data.user) setUserId(data.user.id);
+    if (data.user) {
+      setUserId(data.user.id);
+      setAuthEmail(data.user.email ?? email);
+    }
+    return { ok: true };
+  };
+
+  const signInWithOAuth = async (
+    provider: OAuthProvider
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const sb = getSupabaseBrowser();
+    if (!sb || !isSupabaseConfigured) {
+      return {
+        ok: false,
+        error:
+          locale === "en"
+            ? "Backend not configured"
+            : "后端未配置，无法使用第三方登录",
+      };
+    }
+    const { error } = await sb.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: authCallbackUrl("/discover"),
+        skipBrowserRedirect: false,
+      },
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  };
+
+  const sendEmailOtp = async (
+    email: string
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const trimmed = email.trim().toLowerCase();
+    if (!isValidEmail(trimmed)) {
+      return {
+        ok: false,
+        error: locale === "en" ? "Enter a valid email" : "请输入正确的邮箱",
+      };
+    }
+    const sb = getSupabaseBrowser();
+    if (!sb || !isSupabaseConfigured) {
+      return { ok: false, error: locale === "en" ? "Backend not configured" : "后端未配置" };
+    }
+    const { error } = await sb.auth.signInWithOtp({
+      email: trimmed,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: authCallbackUrl("/discover"),
+      },
+    });
+    if (error) {
+      const msg = error.message || "";
+      const friendly =
+        /magic link|sending|smtp|email/i.test(msg)
+          ? locale === "en"
+            ? "Could not send email. Check Supabase SMTP (Resend) settings and try again."
+            : "邮件发送失败。请检查 Supabase → Emails → SMTP（Resend）是否已开启并保存正确，然后重试。"
+          : msg;
+      return { ok: false, error: friendly };
+    }
+    try {
+      sessionStorage.setItem("nihello_pending_email", trimmed);
+    } catch {}
+    return { ok: true };
+  };
+
+  const verifyEmailOtp = async (
+    email: string,
+    code: string
+  ): Promise<{ ok: boolean; error?: string; needProfile?: boolean }> => {
+    const trimmed = email.trim().toLowerCase();
+    const token = code.trim();
+    if (!isValidEmail(trimmed)) {
+      return { ok: false, error: locale === "en" ? "Enter a valid email" : "请输入正确的邮箱" };
+    }
+    const normalized = token.replace(/\D/g, "");
+    if (!/^\d{6,10}$/.test(normalized)) {
+      return { ok: false, error: locale === "en" ? "Enter the 6-digit code" : "请输入 6 位验证码" };
+    }
+    const sb = getSupabaseBrowser();
+    if (!sb || !isSupabaseConfigured) {
+      return { ok: false, error: locale === "en" ? "Backend not configured" : "后端未配置" };
+    }
+    const { data, error } = await sb.auth.verifyOtp({
+      email: trimmed,
+      token: normalized,
+      type: "email",
+    });
+    if (error) return { ok: false, error: error.message };
+    const uid = data.user?.id;
+    if (!uid) return { ok: false, error: locale === "en" ? "Verification failed" : "验证失败" };
+
+    setUserId(uid);
+    setAuthEmail(data.user?.email ?? trimmed);
+    setTier("light");
+
+    let needProfile = true;
+    try {
+      const raw = await fetchDbProfile(uid);
+      if (raw) {
+        setMyProfile((prev) => ({ ...prev, ...dbToMyPartial(raw) }));
+        setTier(raw.verified ? "verified" : "light");
+        needProfile = profileNeedsBasics(raw.name, raw.age);
+      }
+    } catch {
+      /* new user */
+    }
+    return { ok: true, needProfile };
+  };
+
+  const linkEmail = async (
+    email: string
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const trimmed = email.trim().toLowerCase();
+    if (!isValidEmail(trimmed)) {
+      return {
+        ok: false,
+        error: locale === "en" ? "Enter a valid email" : "请输入正确的邮箱",
+      };
+    }
+    const sb = getSupabaseBrowser();
+    if (!sb || !isSupabaseConfigured) {
+      return { ok: false, error: locale === "en" ? "Backend not configured" : "后端未配置" };
+    }
+    const { error } = await sb.auth.updateUser({ email: trimmed });
+    if (error) return { ok: false, error: error.message };
     return { ok: true };
   };
 
@@ -388,15 +629,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     national: string
   ): Promise<{ ok: boolean; error?: string; e164?: string; isNew?: boolean }> => {
     if (!isValidNational(dial, national)) {
-      return { ok: false, error: "请输入正确的手机号" };
+      return {
+        ok: false,
+        error: locale === "en" ? "Enter a valid phone number" : "请输入正确的手机号",
+      };
     }
     const e164 = toE164(dial, national);
     const meta = dialMeta(dial);
     setLocale(meta.locale);
     setRegion(meta.country === "CN" ? "CN" : "global");
 
-    // Offline / demo path when SMS provider not ready
+    // Mainland CN: do not pretend SMS works without a domestic provider
+    if (dial === "+86" && isSupabaseConfigured && !allowDemoOtp()) {
+      return {
+        ok: false,
+        error:
+          locale === "en"
+            ? "SMS to +86 is not available yet. Use Apple or email login."
+            : "大陆手机短信暂未开通，请使用 Apple 或邮箱验证码登录。",
+      };
+    }
+
     const runDemo = () => {
+      if (!allowDemoOtp()) {
+        return {
+          ok: false as const,
+          error:
+            locale === "en"
+              ? "SMS is not configured. Connect Twilio in Supabase Auth → Phone, or set NEXT_PUBLIC_ALLOW_DEMO_OTP=1 for testing."
+              : "短信未配置。请在 Supabase Auth → Phone 接入 Twilio，或设置 NEXT_PUBLIC_ALLOW_DEMO_OTP=1 用于测试。",
+        };
+      }
       const map = readPhoneMap();
       const isNew = !map[e164];
       try {
@@ -411,22 +674,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const sb = getSupabaseBrowser();
     if (!sb) return runDemo();
 
-    // Check uniqueness on profiles (defense in depth)
     let isNew = true;
     try {
-      const { data: existing } = await sb
-        .from("profiles")
-        .select("id")
-        .eq("phone_e164", e164)
-        .maybeSingle();
-      isNew = !existing;
+      isNew = !(await isPhoneTaken(e164));
     } catch {
-      /* column may not exist until migration — continue */
+      /* RPC may not exist until migration — continue */
     }
 
     const { error } = await sb.auth.signInWithOtp({ phone: e164 });
     if (error) {
-      // Phone provider not configured yet → demo OTP so product flow stays testable
       const msg = error.message.toLowerCase();
       if (
         msg.includes("phone") ||
@@ -459,7 +715,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       sessionStorage.getItem("nihello_otp_demo") === "1";
 
     // —— Demo / offline ——
-    if (!isSupabaseConfigured || demo) {
+    if (!isSupabaseConfigured || (demo && allowDemoOtp())) {
       if (trimmed !== DEMO_OTP) {
         return { ok: false, error: `演示验证码为 ${DEMO_OTP}` };
       }
@@ -563,7 +819,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const sb = getSupabaseBrowser();
     if (sb) await sb.auth.signOut();
     setUserId(null);
+    setAuthEmail(null);
     setTier("guest");
+    setIsBanned(false);
+    setBanReason(null);
   };
 
   const setPhotoPrivacy = (p: PhotoPrivacy) =>
@@ -591,7 +850,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       myProfile,
       configured: isSupabaseConfigured,
       userId,
+      authEmail,
       registerOpen,
+      registerStartStep,
       verifyOpen,
       pendingAction,
       pendingHelloId,
@@ -601,8 +862,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearPendingHello,
       completeRegister,
       updateMyProfile,
-      completeVerify,
+      refreshTrustTier,
       emailAuth,
+      signInWithOAuth,
+      sendEmailOtp,
+      verifyEmailOtp,
+      linkEmail,
       sendPhoneOtp,
       verifyPhoneOtp,
       signOut,
@@ -616,6 +881,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setNotifyPrefs,
       applyUnreadBadge,
       reset,
+      isBanned,
+      banReason,
+      refreshBanStatus,
     }),
     [
       tier,
@@ -625,11 +893,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       locale,
       myProfile,
       userId,
+      authEmail,
       registerOpen,
+      registerStartStep,
       verifyOpen,
       pendingAction,
       pendingHelloId,
       notifyPrefs,
+      isBanned,
+      banReason,
     ]
   );
 

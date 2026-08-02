@@ -6,9 +6,11 @@ import { useApp } from "@/lib/store";
 import { marketingCopy, type MarketingLocale } from "@/lib/marketingCopy";
 
 export function MarketingNav() {
-  const { locale, setLocale, openRegister } = useApp();
+  const { locale, setLocale, openRegister, tier, userId, myProfile } = useApp();
   const lang = (locale === "en" ? "en" : "zh") as MarketingLocale;
   const t = marketingCopy[lang];
+  const loggedIn =
+    tier !== "guest" || !!userId || !!myProfile.phoneE164;
 
   return (
     <header className="sticky top-0 z-40 border-b border-line/60 bg-background/75 backdrop-blur-xl">
@@ -37,6 +39,9 @@ export function MarketingNav() {
           <a href="#how" className="hover:text-foreground">
             {t.howTitle}
           </a>
+          <Link href="/partners" className="hover:text-foreground">
+            {t.navPartners}
+          </Link>
           <Link href="/faq" className="hover:text-foreground">
             {t.navFaq}
           </Link>
@@ -72,13 +77,26 @@ export function MarketingNav() {
               </button>
             ))}
           </div>
-          <button
-            type="button"
-            onClick={() => openRegister()}
-            className="rounded-full border border-line bg-surface/80 px-3.5 py-2 text-sm font-semibold text-foreground hover:bg-surface sm:px-4"
-          >
-            {t.navLogin}
-          </button>
+          {loggedIn ? (
+            <Link
+              href="/me"
+              className="rounded-full border border-line bg-surface/80 px-3.5 py-2 text-sm font-semibold text-foreground hover:bg-surface sm:px-4"
+            >
+              {myProfile.name?.trim()
+                ? myProfile.name.trim()
+                : lang === "en"
+                  ? "Me"
+                  : "我的"}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => openRegister()}
+              className="rounded-full border border-line bg-surface/80 px-3.5 py-2 text-sm font-semibold text-foreground hover:bg-surface sm:px-4"
+            >
+              {t.navLogin}
+            </button>
+          )}
           <Link
             href="/discover"
             className="hidden rounded-full bg-[#1c1c1f] px-4 py-2 text-sm font-semibold text-white sm:inline-flex"
@@ -114,6 +132,9 @@ export function MarketingFooter() {
           </div>
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted">
+          <Link href="/partners" className="hover:text-foreground">
+            {t.navPartners}
+          </Link>
           <Link href="/faq" className="hover:text-foreground">
             {t.navFaq}
           </Link>
