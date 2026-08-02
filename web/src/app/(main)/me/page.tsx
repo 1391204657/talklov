@@ -108,6 +108,8 @@ export default function Me() {
     configured,
     notifyPrefs,
     setNotifyPrefs,
+    authEmail,
+    linkEmail,
   } = useApp();
 
   const c = tApp(locale);
@@ -129,10 +131,18 @@ export default function Me() {
   const showChineseVariants = myProfile.nativeLang === "中文";
   const [notifyErr, setNotifyErr] = useState<string | null>(null);
   const [learnRecords, setLearnRecords] = useState<LearnRecord[]>([]);
+  const [emailDraft, setEmailDraft] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
+  const [emailErr, setEmailErr] = useState<string | null>(null);
 
   useEffect(() => {
     setLearnRecords(loadLearnRecords());
   }, []);
+
+  useEffect(() => {
+    if (authEmail) setEmailDraft(authEmail);
+  }, [authEmail]);
 
   const privacyOptions: { id: PhotoPrivacy; label: string; desc: string }[] = [
     { id: "public", label: c.privacyPublic, desc: c.privacyPublicDesc },
@@ -189,12 +199,19 @@ export default function Me() {
                   : undefined
               }
             >
-              {!avatar && (myProfile.name ? myProfile.name.charAt(0) : "?")}
+              {!avatar &&
+                (effectiveTier === "guest"
+                  ? "?"
+                  : myProfile.name
+                    ? myProfile.name.charAt(0)
+                    : "?")}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-lg font-semibold">
-                  {myProfile.name || c.guestUser}
+                  {effectiveTier === "guest"
+                    ? c.guestUser
+                    : myProfile.name || c.guestUser}
                 </span>
                 {effectiveTier === "verified" && (
                   <span className="rounded-full bg-accent-2/15 px-2 py-0.5 text-[11px] font-medium text-accent-2">
@@ -252,17 +269,52 @@ export default function Me() {
             </div>
           )}
           {effectiveTier !== "guest" && (
-            <Link
-              href="/me/membership"
-              className="mt-2 flex items-center justify-between rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-orange-400/10 px-3 py-2.5"
-            >
-              <span className="text-sm font-semibold">
-                {locale === "en" ? "Membership & VIP" : "会员与 VIP"}
-              </span>
-              <span className="text-xs text-amber-800/80">
-                {locale === "en" ? "Plans →" : "查看方案 →"}
-              </span>
-            </Link>
+            <>
+              <Link
+                href="/me/moments"
+                className="mt-2 flex items-center justify-between rounded-xl border border-line px-3 py-2.5"
+              >
+                <span className="text-sm font-semibold">
+                  {locale === "en" ? "My moments" : "我的动态"}
+                </span>
+                <span className="text-xs text-muted">
+                  {locale === "en" ? "Posts & replies →" : "发布与互动 →"}
+                </span>
+              </Link>
+              <Link
+                href="/me/favorites"
+                className="mt-2 flex items-center justify-between rounded-xl border border-line px-3 py-2.5"
+              >
+                <span className="text-sm font-semibold">
+                  {locale === "en" ? "Favorites" : "我的收藏"}
+                </span>
+                <span className="text-xs text-muted">
+                  {locale === "en" ? "Saved →" : "查看 →"}
+                </span>
+              </Link>
+              <Link
+                href="/me/visitors"
+                className="mt-2 flex items-center justify-between rounded-xl border border-line px-3 py-2.5"
+              >
+                <span className="text-sm font-semibold">
+                  {locale === "en" ? "Who viewed me" : "谁看了我"}
+                </span>
+                <span className="text-xs text-amber-800/80">
+                  {locale === "en" ? "VIP →" : "VIP →"}
+                </span>
+              </Link>
+              <Link
+                href="/me/membership"
+                className="mt-2 flex items-center justify-between rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-orange-400/10 px-3 py-2.5"
+              >
+                <span className="text-sm font-semibold">
+                  {locale === "en" ? "Membership & VIP" : "会员与 VIP"}
+                </span>
+                <span className="text-xs text-amber-800/80">
+                  {locale === "en" ? "Plans →" : "查看方案 →"}
+                </span>
+              </Link>
+            </>
           )}
         </div>
 
@@ -494,20 +546,89 @@ export default function Me() {
               <span className="shrink-0 text-xs text-success">{c.phoneBoundOk}</span>
             </div>
           ) : (
-            <ComingSoonRow
-              icon="📱"
-              label={c.phoneBound}
-              subtitle={c.phoneNeedLogin}
-              soon={c.comingSoon}
-            />
+            <button
+              type="button"
+              onClick={() => openRegister()}
+              className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-surface-2/50"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="text-sm">📱 {c.phoneBound}</div>
+                <div className="mt-0.5 text-xs text-muted">
+                  {effectiveTier === "guest"
+                    ? c.phoneNeedLogin
+                    : locale === "en"
+                      ? "Optional — US SMS login / recovery"
+                      : "可选 · 美国短信登录 / 找回"}
+                </div>
+              </div>
+              <span className="shrink-0 text-muted">›</span>
+            </button>
           )}
-          <div className="border-t border-line">
-            <ComingSoonRow
-              icon="✉️"
-              label={c.emailBind}
-              subtitle={c.emailBindHint}
-              soon={c.comingSoon}
-            />
+          <div className="border-t border-line px-4 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm">✉️ {c.emailBind}</div>
+                <div className="mt-0.5 text-xs text-muted">{c.emailBindHint}</div>
+              </div>
+              {authEmail ? (
+                <span className="shrink-0 text-xs text-success">
+                  {c.emailBoundOk}
+                </span>
+              ) : null}
+            </div>
+            {effectiveTier === "guest" ? (
+              <button
+                type="button"
+                onClick={() => openRegister()}
+                className="mt-2 text-xs text-accent"
+              >
+                {c.registerLogin}
+              </button>
+            ) : (
+              <div className="mt-2 space-y-2">
+                <input
+                  type="email"
+                  value={emailDraft}
+                  onChange={(e) => {
+                    setEmailDraft(e.target.value);
+                    setEmailMsg(null);
+                    setEmailErr(null);
+                  }}
+                  placeholder={c.emailBindPlaceholder}
+                  disabled={!configured || emailBusy}
+                  className="w-full rounded-xl border border-line bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  disabled={
+                    !configured ||
+                    emailBusy ||
+                    !emailDraft.trim() ||
+                    emailDraft.trim().toLowerCase() ===
+                      (authEmail || "").toLowerCase()
+                  }
+                  onClick={async () => {
+                    setEmailBusy(true);
+                    setEmailErr(null);
+                    setEmailMsg(null);
+                    const res = await linkEmail(emailDraft);
+                    setEmailBusy(false);
+                    if (!res.ok) {
+                      setEmailErr(res.error ?? "Failed");
+                      return;
+                    }
+                    setEmailMsg(c.emailBindPending);
+                  }}
+                  className="rounded-xl bg-[#1c1c1f] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+                >
+                  {emailBusy ? c.sending : c.emailBindAction}
+                </button>
+                {emailMsg && (
+                  <p className="text-xs text-success">{emailMsg}</p>
+                )}
+                {emailErr && <p className="text-xs text-danger">{emailErr}</p>}
+              </div>
+            )}
           </div>
         </div>
 

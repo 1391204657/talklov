@@ -823,6 +823,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTier("guest");
     setIsBanned(false);
     setBanReason(null);
+    // Clear local profile so Me doesn't keep the previous display name as a "guest"
+    setMyProfile(defaultMyProfile);
+    setRegisterOpen(false);
+    setVerifyOpen(false);
+    try {
+      localStorage.setItem(
+        KEY,
+        JSON.stringify({
+          tier: "guest",
+          region,
+          installed,
+          theme,
+          locale,
+          myProfile: defaultMyProfile,
+          userId: null,
+        })
+      );
+    } catch {}
   };
 
   const setPhotoPrivacy = (p: PhotoPrivacy) =>
