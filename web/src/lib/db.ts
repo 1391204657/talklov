@@ -148,6 +148,34 @@ export async function fetchDbProfile(id: string): Promise<DbProfile | null> {
   return (data as DbProfile) ?? null;
 }
 
+/** Own phone / stripe id — security definer RPC after privacy migration. */
+export async function fetchMyProfileSecrets(): Promise<{
+  phoneE164: string;
+  stripeCustomerId: string | null;
+}> {
+  const { data, error } = await must().rpc("my_profile_secrets");
+  if (error) {
+    console.warn("[my_profile_secrets]", error.message);
+    return { phoneE164: "", stripeCustomerId: null };
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    phoneE164: (row?.phone_e164 as string) || "",
+    stripeCustomerId: (row?.stripe_customer_id as string) || null,
+  };
+}
+
+export async function isPhoneTaken(e164: string): Promise<boolean> {
+  const { data, error } = await must().rpc("is_phone_taken", {
+    p_phone: e164,
+  });
+  if (error) {
+    console.warn("[is_phone_taken]", error.message);
+    return false;
+  }
+  return Boolean(data);
+}
+
 export function dbToMyPartial(r: DbProfile) {
   const photos =
     r.photos?.length ? r.photos : r.avatar_url ? [r.avatar_url] : [];
