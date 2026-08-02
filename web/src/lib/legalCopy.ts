@@ -9,8 +9,8 @@ export const termsSections: Record<MarketingLocale, LegalSection[]> = {
       p: "TalkLov（talklov.com）提供中美用户之间的语言交换与社交服务。你可以通过浏览、打招呼、聊天等方式使用本平台。部分功能需注册或真人认证后可用。",
     },
     {
-      h: "2. 账号与手机号",
-      p: "注册以手机验证码为主。一个手机号仅可绑定一个账号。你有责任妥善保管验证码与设备，不得出借、售卖账号或用于违法用途。",
+      h: "2. 账号与登录方式",
+      p: "你可通过邮箱验证码、手机短信验证码，或 Google / Apple 等第三方账号注册与登录。一个手机号仅可绑定一个账号。你有责任妥善保管验证码与设备，不得出借、售卖账号或用于违法用途。",
     },
     {
       h: "3. 用户行为",
@@ -39,8 +39,8 @@ export const termsSections: Record<MarketingLocale, LegalSection[]> = {
       p: "TalkLov (talklov.com) provides language exchange and social features for users interested in US–China connections. Some features require registration or selfie verification.",
     },
     {
-      h: "2. Accounts & phone numbers",
-      p: "Signup is phone-OTP first. One phone number may bind only one account. Keep your codes and devices secure; do not sell or misuse accounts.",
+      h: "2. Accounts & sign-in",
+      p: "You may sign up with email OTP, phone SMS OTP, or third-party providers such as Google / Apple. One phone number may bind only one account. Keep your codes and devices secure; do not sell or misuse accounts.",
     },
     {
       h: "3. Conduct",
@@ -69,7 +69,7 @@ export const privacySections: Record<MarketingLocale, LegalSection[]> = {
   zh: [
     {
       h: "1. 我们收集什么",
-      p: "可能包括：手机号、资料信息（昵称、年龄、语言、兴趣、照片）、设备与日志信息、聊天与开场白内容（用于提供服务与安全）。",
+      p: "可能包括：邮箱、手机号、第三方登录标识、资料信息（昵称、年龄、语言、兴趣、照片）、设备与日志信息、聊天与开场白内容（用于提供服务与安全）。",
     },
     {
       h: "2. 如何使用",
@@ -99,7 +99,7 @@ export const privacySections: Record<MarketingLocale, LegalSection[]> = {
   en: [
     {
       h: "1. What we collect",
-      p: "May include phone number, profile data (name, age, languages, interests, photos), device/log data, and chat/opener content needed to run the service and keep it safe.",
+      p: "May include email, phone number, third-party sign-in identifiers, profile data (name, age, languages, interests, photos), device/log data, and chat/opener content needed to run the service and keep it safe.",
     },
     {
       h: "2. How we use it",

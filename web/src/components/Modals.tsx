@@ -70,7 +70,7 @@ function OtpBoxes({
           maxLength={1}
           disabled={disabled}
           value={d}
-          placeholder="·"
+          placeholder=""
           onChange={(e) => {
             const raw = e.target.value.replace(/\D/g, "");
             if (!raw) {
@@ -122,7 +122,7 @@ function OtpBoxes({
             setDigits(pasted);
             focusAt(Math.min(pasted.length, OTP_LEN) - 1);
           }}
-          className="h-12 w-10 rounded-xl border border-line bg-surface-2 text-center text-lg font-semibold tabular-nums outline-none focus:border-accent disabled:opacity-40 sm:h-14 sm:w-11"
+          className="h-12 w-10 rounded-xl border-2 border-line bg-white text-center text-lg font-semibold tabular-nums text-foreground shadow-sm outline-none placeholder:text-transparent focus:border-accent disabled:opacity-40 sm:h-14 sm:w-11"
         />
       ))}
     </div>
