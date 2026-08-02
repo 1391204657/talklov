@@ -637,25 +637,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLocale(meta.locale);
     setRegion(meta.country === "CN" ? "CN" : "global");
 
-    // Mainland CN: do not pretend SMS works without a domestic provider
-    if (dial === "+86" && isSupabaseConfigured && !allowDemoOtp()) {
-      return {
-        ok: false,
-        error:
-          locale === "en"
-            ? "SMS to +86 is not available yet. Use Apple or email login."
-            : "大陆手机短信暂未开通，请使用 Apple 或邮箱验证码登录。",
-      };
-    }
+    const smsNotConfiguredError = () =>
+      locale === "en"
+        ? "SMS is not configured. Connect Twilio in Supabase Auth → Phone, or set NEXT_PUBLIC_ALLOW_DEMO_OTP=1 for testing."
+        : "短信未配置。请在 Supabase Auth → Phone 接入 Twilio，或设置 NEXT_PUBLIC_ALLOW_DEMO_OTP=1 用于测试。";
+
+    const smsDeliveryHint = () =>
+      dial === "+86"
+        ? locale === "en"
+          ? "Could not send SMS to this China number. Please use email code instead."
+          : "该大陆号码短信发送失败，请改用邮箱验证码登录。"
+        : locale === "en"
+          ? "Could not send SMS. Check the number or try again later."
+          : "短信发送失败，请检查号码或稍后再试。";
 
     const runDemo = () => {
       if (!allowDemoOtp()) {
         return {
           ok: false as const,
-          error:
-            locale === "en"
-              ? "SMS is not configured. Connect Twilio in Supabase Auth → Phone, or set NEXT_PUBLIC_ALLOW_DEMO_OTP=1 for testing."
-              : "短信未配置。请在 Supabase Auth → Phone 接入 Twilio，或设置 NEXT_PUBLIC_ALLOW_DEMO_OTP=1 用于测试。",
+          error: smsNotConfiguredError(),
         };
       }
       const map = readPhoneMap();
@@ -682,13 +682,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const { error } = await sb.auth.signInWithOtp({ phone: e164 });
     if (error) {
       const msg = error.message.toLowerCase();
-      if (
+      const providerIssue =
         msg.includes("phone") ||
         msg.includes("sms") ||
         msg.includes("provider") ||
-        msg.includes("disabled")
-      ) {
+        msg.includes("disabled") ||
+        msg.includes("twilio");
+      // Dev/demo only: fall back to local OTP. Production: show a clear error.
+      if (providerIssue && allowDemoOtp()) {
         return runDemo();
+      }
+      if (providerIssue) {
+        return { ok: false, error: smsDeliveryHint() };
       }
       return { ok: false, error: friendlyAuthError(error.message, locale) };
     }

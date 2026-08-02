@@ -276,7 +276,7 @@ function RegisterModal() {
       setShowPhoneForm(false);
     } else {
       setDial("+1");
-      setShowPhoneForm(false);
+      setShowPhoneForm(true);
       setShowEmailForm(false);
     }
   }, [registerOpen, registerStartStep]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -296,6 +296,7 @@ function RegisterModal() {
     setRegion(r === "CN" ? "CN" : "global");
     setLocale(r === "CN" ? "zh" : "en");
     setDial(r === "CN" ? "+86" : "+1");
+    // CN: email primary; US: phone SMS primary (under OAuth).
     setShowPhoneForm(r === "US");
     setShowEmailForm(r === "CN");
     setAuthErr(null);
@@ -445,6 +446,48 @@ function RegisterModal() {
 
   const phoneOk = isValidNational(dial, national);
   const legalLang = (locale === "en" ? "en" : "zh") as MarketingLocale;
+  const dialOptions =
+    authRegion === "CN"
+      ? DIAL_OPTIONS
+      : DIAL_OPTIONS.filter((o) => o.dial !== "+86");
+
+  const phoneForm = (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <select
+          value={dial}
+          onChange={(e) => onDialChange(e.target.value as DialCode)}
+          className="w-[7.5rem] shrink-0 rounded-xl border border-line bg-surface-2 px-2 py-3 text-sm outline-none focus:border-accent"
+        >
+          {dialOptions.map((o) => (
+            <option key={o.dial} value={o.dial}>
+              {o.flag} {o.dial}
+            </option>
+          ))}
+        </select>
+        <input
+          type="tel"
+          inputMode="numeric"
+          value={national}
+          onChange={(e) => setNational(e.target.value)}
+          placeholder={locale === "en" ? "Phone number" : "手机号"}
+          autoComplete="tel-national"
+          onKeyDown={(e) =>
+            e.key === "Enter" && phoneOk && agreedLegal && sendCode()
+          }
+          className="min-w-0 flex-1 rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
+        />
+      </div>
+      <button
+        type="button"
+        disabled={authBusy || !phoneOk || !agreedLegal}
+        onClick={() => void sendCode()}
+        className="w-full rounded-xl bg-[#1c1c1f] py-3.5 font-semibold text-white disabled:opacity-40"
+      >
+        {authBusy ? copy.sending : copy.getCode}
+      </button>
+    </div>
+  );
 
   return (
     <Sheet
@@ -614,9 +657,40 @@ function RegisterModal() {
                     </button>
                   </div>
                 )}
-                <p className="text-center text-[11px] leading-relaxed text-muted">
-                  {copy.cnSmsUnavailable}
-                </p>
+                {!showPhoneForm ? (
+                  <button
+                    type="button"
+                    disabled={!agreedLegal}
+                    onClick={() => {
+                      setShowPhoneForm(true);
+                      setShowEmailForm(false);
+                      setDial("+86");
+                      setAuthErr(null);
+                    }}
+                    className="w-full text-center text-[12px] text-muted underline-offset-2 hover:underline disabled:opacity-40"
+                  >
+                    {copy.continuePhoneBackup}
+                  </button>
+                ) : (
+                  <>
+                    {phoneForm}
+                    <p className="text-center text-[11px] leading-relaxed text-muted">
+                      {copy.cnSmsBackupHint}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={!agreedLegal}
+                      onClick={() => {
+                        setShowPhoneForm(false);
+                        setShowEmailForm(true);
+                        setAuthErr(null);
+                      }}
+                      className="w-full text-center text-[12px] text-muted underline-offset-2 hover:underline disabled:opacity-40"
+                    >
+                      {copy.continueEmail}
+                    </button>
+                  </>
+                )}
               </>
             )}
 
@@ -637,48 +711,7 @@ function RegisterModal() {
                     {copy.continuePhone}
                   </button>
                 ) : (
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <select
-                        value={dial}
-                        onChange={(e) =>
-                          onDialChange(e.target.value as DialCode)
-                        }
-                        className="w-[7.5rem] shrink-0 rounded-xl border border-line bg-surface-2 px-2 py-3 text-sm outline-none focus:border-accent"
-                      >
-                        {DIAL_OPTIONS.filter((o) => o.dial !== "+86").map(
-                          (o) => (
-                            <option key={o.dial} value={o.dial}>
-                              {o.flag} {o.dial}
-                            </option>
-                          )
-                        )}
-                      </select>
-                      <input
-                        type="tel"
-                        inputMode="numeric"
-                        value={national}
-                        onChange={(e) => setNational(e.target.value)}
-                        placeholder="Phone number"
-                        autoComplete="tel-national"
-                        onKeyDown={(e) =>
-                          e.key === "Enter" &&
-                          phoneOk &&
-                          agreedLegal &&
-                          sendCode()
-                        }
-                        className="min-w-0 flex-1 rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      disabled={authBusy || !phoneOk || !agreedLegal}
-                      onClick={() => void sendCode()}
-                      className="w-full rounded-xl bg-[#1c1c1f] py-3.5 font-semibold text-white disabled:opacity-40"
-                    >
-                      {authBusy ? copy.sending : copy.getCode}
-                    </button>
-                  </div>
+                  phoneForm
                 )}
                 <button
                   type="button"
