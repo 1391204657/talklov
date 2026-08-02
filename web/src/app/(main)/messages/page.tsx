@@ -385,6 +385,7 @@ function ConvoRow({
   const router = useRouter();
   const timer = useRef<number | null>(null);
   const longPressed = useRef(false);
+  const startXY = useRef<{ x: number; y: number } | null>(null);
 
   const clearTimer = () => {
     if (timer.current != null) {
@@ -393,54 +394,92 @@ function ConvoRow({
     }
   };
 
-  const startPress = () => {
-    longPressed.current = false;
+  const fireLongPress = () => {
+    longPressed.current = true;
     clearTimer();
-    timer.current = window.setTimeout(() => {
-      longPressed.current = true;
-      onLongPress();
-      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-        try {
-          navigator.vibrate(12);
-        } catch {}
-      }
-    }, 480);
+    onLongPress();
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try {
+        navigator.vibrate(12);
+      } catch {}
+    }
+  };
+
+  const startPress = (x: number, y: number) => {
+    longPressed.current = false;
+    startXY.current = { x, y };
+    clearTimer();
+    timer.current = window.setTimeout(fireLongPress, 450);
+  };
+
+  const movePress = (x: number, y: number) => {
+    const s = startXY.current;
+    if (!s) return;
+    // Cancel if finger moves (scrolling the list)
+    if (Math.abs(x - s.x) > 10 || Math.abs(y - s.y) > 10) {
+      clearTimer();
+      startXY.current = null;
+    }
   };
 
   const endPress = () => {
     clearTimer();
+    startXY.current = null;
   };
 
   return (
-    <a
-      href={href}
+    // div (not <a>) so iOS Safari won't show link preview / system share sheet
+    <div
+      role="link"
+      tabIndex={0}
       className={`flex items-center gap-3 px-4 py-3 select-none active:bg-surface ${
         pinned ? "bg-surface-2/70" : ""
       }`}
-      onClick={(e) => {
-        e.preventDefault();
+      style={{
+        WebkitTouchCallout: "none",
+        WebkitUserSelect: "none",
+        userSelect: "none",
+        touchAction: "pan-y",
+      }}
+      onClick={() => {
         if (longPressed.current) {
           longPressed.current = false;
           return;
         }
         router.push(href);
       }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          router.push(href);
+        }
+      }}
       onContextMenu={(e) => {
         e.preventDefault();
-        onLongPress();
+        e.stopPropagation();
+        fireLongPress();
       }}
-      onTouchStart={startPress}
+      onTouchStart={(e) => {
+        const t = e.touches[0];
+        if (t) startPress(t.clientX, t.clientY);
+      }}
+      onTouchMove={(e) => {
+        const t = e.touches[0];
+        if (t) movePress(t.clientX, t.clientY);
+      }}
       onTouchEnd={endPress}
-      onTouchMove={endPress}
       onTouchCancel={endPress}
       onMouseDown={(e) => {
-        if (e.button === 0) startPress();
+        if (e.button === 0) startPress(e.clientX, e.clientY);
+      }}
+      onMouseMove={(e) => {
+        if (e.buttons === 1) movePress(e.clientX, e.clientY);
       }}
       onMouseUp={endPress}
       onMouseLeave={endPress}
     >
       {children}
-    </a>
+    </div>
   );
 }
 
