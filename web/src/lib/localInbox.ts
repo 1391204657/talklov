@@ -10,6 +10,7 @@ export type LocalConvo = {
 };
 
 const KEY = "talklov_local_inbox_v1";
+const PIN_KEY = "talklov_pinned_chats_v1";
 
 function read(): LocalConvo[] {
   if (typeof window === "undefined") return [];
@@ -31,7 +32,66 @@ function write(list: LocalConvo[]) {
 }
 
 export function listLocalConvos(): LocalConvo[] {
-  return read().sort((a, b) => b.updatedAt - a.updatedAt);
+  return sortByPinThenTime(read(), (c) => c.otherId, (c) => c.updatedAt);
+}
+
+function readPinnedIds(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(PIN_KEY);
+    const list = raw ? (JSON.parse(raw) as string[]) : [];
+    return Array.isArray(list) ? list.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePinnedIds(ids: string[]) {
+  try {
+    localStorage.setItem(PIN_KEY, JSON.stringify(ids));
+    window.dispatchEvent(new Event("talklov-inbox"));
+  } catch {}
+}
+
+export function listPinnedChatIds(): string[] {
+  return readPinnedIds();
+}
+
+export function isChatPinned(otherId: string): boolean {
+  return readPinnedIds().includes(otherId);
+}
+
+/** Pin (move to front of pin list) or unpin a chat by partner id. */
+export function setChatPinned(otherId: string, pinned: boolean) {
+  if (!otherId) return;
+  const cur = readPinnedIds().filter((id) => id !== otherId);
+  writePinnedIds(pinned ? [otherId, ...cur] : cur);
+}
+
+export function toggleChatPinned(otherId: string): boolean {
+  const next = !isChatPinned(otherId);
+  setChatPinned(otherId, next);
+  return next;
+}
+
+/** Pinned first (pin order), then by time descending. */
+export function sortByPinThenTime<T>(
+  items: T[],
+  getId: (item: T) => string,
+  getTime: (item: T) => number
+): T[] {
+  const pins = readPinnedIds();
+  const rank = new Map(pins.map((id, i) => [id, i]));
+  return [...items].sort((a, b) => {
+    const ai = rank.get(getId(a));
+    const bi = rank.get(getId(b));
+    const ap = ai !== undefined;
+    const bp = bi !== undefined;
+    if (ap && bp) return ai! - bi!;
+    if (ap) return -1;
+    if (bp) return 1;
+    return getTime(b) - getTime(a);
+  });
 }
 
 export function totalUnread(): number {
@@ -80,11 +140,8 @@ export function subscribeInbox(onChange: () => void): () => void {
   };
 }
 
-/**
- * Testing period: keep people you've already greeted/chatted with visible in Discover.
- * Flip to `true` before public launch to hide active chat partners from the feed.
- */
-export const HIDE_ACTIVE_CHATS_FROM_DISCOVER = false;
+/** Hide people you've already greeted / chatted with from Discover. */
+export const HIDE_ACTIVE_CHATS_FROM_DISCOVER = true;
 
 const ACTIVE_KEY = "talklov_active_chats_v1";
 

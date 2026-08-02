@@ -32,6 +32,7 @@ import {
 import {
   allowDemoOtp,
   authCallbackUrl,
+  friendlyAuthError,
   isValidEmail,
   type OAuthProvider,
 } from "./authHelpers";
@@ -520,7 +521,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         skipBrowserRedirect: false,
       },
     });
-    if (error) return { ok: false, error: error.message };
+    if (error) {
+      return { ok: false, error: friendlyAuthError(error.message, locale) };
+    }
     return { ok: true };
   };
 
@@ -546,14 +549,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
     });
     if (error) {
-      const msg = error.message || "";
-      const friendly =
-        /magic link|sending|smtp|email/i.test(msg)
-          ? locale === "en"
-            ? "Could not send email. Check Supabase SMTP (Resend) settings and try again."
-            : "邮件发送失败。请检查 Supabase → Emails → SMTP（Resend）是否已开启并保存正确，然后重试。"
-          : msg;
-      return { ok: false, error: friendly };
+      return { ok: false, error: friendlyAuthError(error.message, locale) };
     }
     try {
       sessionStorage.setItem("nihello_pending_email", trimmed);
@@ -583,7 +579,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       token: normalized,
       type: "email",
     });
-    if (error) return { ok: false, error: error.message };
+    if (error) {
+      return { ok: false, error: friendlyAuthError(error.message, locale) };
+    }
     const uid = data.user?.id;
     if (!uid) return { ok: false, error: locale === "en" ? "Verification failed" : "验证失败" };
 
@@ -692,7 +690,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ) {
         return runDemo();
       }
-      return { ok: false, error: error.message };
+      return { ok: false, error: friendlyAuthError(error.message, locale) };
     }
     try {
       sessionStorage.setItem("nihello_pending_phone", e164);
@@ -775,9 +773,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       token: trimmed,
       type: "sms",
     });
-    if (error) return { ok: false, error: error.message };
+    if (error) {
+      return { ok: false, error: friendlyAuthError(error.message, locale) };
+    }
     const uid = data.user?.id;
-    if (!uid) return { ok: false, error: "验证失败" };
+    if (!uid) {
+      return { ok: false, error: locale === "en" ? "Verification failed" : "验证失败" };
+    }
 
     setUserId(uid);
     // Bind phone uniquely on profile (one phone → one row)

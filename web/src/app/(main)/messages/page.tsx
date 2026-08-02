@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { profiles as mockProfiles } from "@/lib/mockData";
 import { useApp } from "@/lib/store";
@@ -18,7 +18,10 @@ import {
 } from "@/lib/db";
 import { consumeOpenerDraft, writeOpenerDraft } from "@/lib/datingSim";
 import {
+  isChatPinned,
   listLocalConvos,
+  setChatPinned,
+  sortByPinThenTime,
   subscribeInbox,
   totalUnread,
   type LocalConvo,
@@ -30,13 +33,19 @@ interface QueueItem {
   sender: Profile;
 }
 
+type PinTarget = {
+  otherId: string;
+  name: string;
+  pinned: boolean;
+};
+
 export default function Messages() {
-  const { tier, configured, userId, myProfile, applyUnreadBadge, notifyPrefs } =
+  const { tier, configured, userId, myProfile, applyUnreadBadge, notifyPrefs, locale } =
     useApp();
   const router = useRouter();
   const useBackend = configured && !!userId;
-  const loggedIn =
-    tier !== "guest" || !!userId || !!myProfile.phoneE164;
+  const loggedIn = tier !== "guest" || !!userId || !!myProfile.phoneE164;
+  const en = locale === "en";
 
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [convos, setConvos] = useState<ConversationSummary[]>([]);
@@ -44,6 +53,8 @@ export default function Messages() {
   const [busy, setBusy] = useState<string | null>(null);
   const [shareMode, setShareMode] = useState(false);
   const [shareDraft, setShareDraft] = useState("");
+  const [pinTarget, setPinTarget] = useState<PinTarget | null>(null);
+  const [, setPinTick] = useState(0);
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -59,6 +70,7 @@ export default function Messages() {
   useEffect(() => {
     const refresh = () => {
       setLocalConvos(listLocalConvos());
+      setPinTick((n) => n + 1);
       applyUnreadBadge(totalUnread());
     };
     refresh();
@@ -112,9 +124,31 @@ export default function Messages() {
     router.push(`/chat/${id}`);
   };
 
+  const openPinMenu = (otherId: string, name: string) => {
+    setPinTarget({
+      otherId,
+      name,
+      pinned: isChatPinned(otherId),
+    });
+  };
+
+  const confirmPinToggle = () => {
+    if (!pinTarget) return;
+    setChatPinned(pinTarget.otherId, !pinTarget.pinned);
+    setPinTarget(null);
+    setLocalConvos(listLocalConvos());
+    setPinTick((n) => n + 1);
+  };
+
   const shareCandidates = mockProfiles
     .filter((p) => p.country === "US")
     .slice(0, 6);
+
+  const sortedBackend = sortByPinThenTime(
+    convos,
+    (c) => c.otherId,
+    () => 0
+  );
 
   if (!loggedIn) {
     return (
@@ -123,8 +157,13 @@ export default function Messages() {
           <MeAvatarButton />
         </header>
         <EmptyState
-          title="还没有会话"
-          desc="去发现页找到合拍的人，打个招呼就能开始聊天。"
+          title={en ? "No conversations yet" : "还没有会话"}
+          desc={
+            en
+              ? "Find someone on Discover and say hello to start chatting."
+              : "去发现页找到合拍的人，打个招呼就能开始聊天。"
+          }
+          cta={en ? "Discover" : "去发现"}
         />
       </main>
     );
@@ -236,62 +275,244 @@ export default function Messages() {
 
         <ul className="divide-y divide-line">
           {/* Local AI / demo chats (美琪、Jack…) */}
-          {localConvos.map((c) => (
-            <li key={c.otherId}>
-              <Link
-                href={`/chat/${c.otherId}`}
-                className="flex items-center gap-3 px-4 py-3 active:bg-surface"
-              >
-                <div
-                  className="h-12 w-12 shrink-0 rounded-full bg-cover bg-center bg-surface-2"
-                  style={{ backgroundImage: `url(${c.photo})` }}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{c.name}</span>
-                    <span className="text-[11px] text-muted">刚刚</span>
-                  </div>
-                  <div className="truncate text-sm text-muted">{c.preview}</div>
-                </div>
-                {c.unread > 0 && (
-                  <span className="h-5 min-w-5 rounded-full bg-accent px-1.5 text-center text-[11px] leading-5 text-white">
-                    {c.unread}
-                  </span>
-                )}
-              </Link>
-            </li>
-          ))}
-
-          {useBackend &&
-            convos.map((c) => (
-              <li key={c.conversationId}>
-                <Link
+          {localConvos.map((c) => {
+            const pinned = isChatPinned(c.otherId);
+            return (
+              <li key={c.otherId}>
+                <ConvoRow
                   href={`/chat/${c.otherId}`}
-                  className="flex items-center gap-3 px-4 py-3 active:bg-surface"
+                  pinned={pinned}
+                  onLongPress={() => openPinMenu(c.otherId, c.name)}
                 >
                   <div
                     className="h-12 w-12 shrink-0 rounded-full bg-cover bg-center bg-surface-2"
-                    style={{ backgroundImage: `url(${c.other.photo})` }}
+                    style={{ backgroundImage: `url(${c.photo})` }}
                   />
                   <div className="min-w-0 flex-1">
-                    <span className="font-medium">{c.other.name}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1 font-medium">
+                        {pinned && <PinIcon />}
+                        <span className="truncate">{c.name}</span>
+                      </span>
+                      <span className="shrink-0 text-[11px] text-muted">
+                        {en ? "Just now" : "刚刚"}
+                      </span>
+                    </div>
+                    <div className="truncate text-sm text-muted">{c.preview}</div>
                   </div>
-                </Link>
+                  {c.unread > 0 && (
+                    <span className="h-5 min-w-5 rounded-full bg-accent px-1.5 text-center text-[11px] leading-5 text-white">
+                      {c.unread}
+                    </span>
+                  )}
+                </ConvoRow>
               </li>
-            ))}
+            );
+          })}
+
+          {useBackend &&
+            sortedBackend.map((c) => {
+              const pinned = isChatPinned(c.otherId);
+              return (
+                <li key={c.conversationId}>
+                  <ConvoRow
+                    href={`/chat/${c.otherId}`}
+                    pinned={pinned}
+                    onLongPress={() => openPinMenu(c.otherId, c.other.name)}
+                  >
+                    <div
+                      className="h-12 w-12 shrink-0 rounded-full bg-cover bg-center bg-surface-2"
+                      style={{ backgroundImage: `url(${c.other.photo})` }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1 font-medium">
+                        {pinned && <PinIcon />}
+                        <span className="truncate">{c.other.name}</span>
+                      </span>
+                    </div>
+                  </ConvoRow>
+                </li>
+              );
+            })}
 
           {empty && (
             <li className="p-10 text-center text-sm text-muted">
-              还没有会话，去发现页打个招呼吧～
+              {en
+                ? "No conversations yet — say hi on Discover."
+                : "还没有会话，去发现页打个招呼吧～"}
             </li>
           )}
         </ul>
       </div>
+
+      {pinTarget && (
+        <PinActionSheet
+          name={pinTarget.name}
+          pinned={pinTarget.pinned}
+          en={en}
+          onToggle={confirmPinToggle}
+          onClose={() => setPinTarget(null)}
+        />
+      )}
     </main>
   );
 }
 
-function EmptyState({ title, desc }: { title: string; desc: string }) {
+function PinIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-3.5 w-3.5 shrink-0 text-muted"
+      fill="currentColor"
+      aria-hidden
+    >
+      <path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z" />
+    </svg>
+  );
+}
+
+function ConvoRow({
+  href,
+  pinned,
+  onLongPress,
+  children,
+}: {
+  href: string;
+  pinned?: boolean;
+  onLongPress: () => void;
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
+  const timer = useRef<number | null>(null);
+  const longPressed = useRef(false);
+
+  const clearTimer = () => {
+    if (timer.current != null) {
+      window.clearTimeout(timer.current);
+      timer.current = null;
+    }
+  };
+
+  const startPress = () => {
+    longPressed.current = false;
+    clearTimer();
+    timer.current = window.setTimeout(() => {
+      longPressed.current = true;
+      onLongPress();
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        try {
+          navigator.vibrate(12);
+        } catch {}
+      }
+    }, 480);
+  };
+
+  const endPress = () => {
+    clearTimer();
+  };
+
+  return (
+    <a
+      href={href}
+      className={`flex items-center gap-3 px-4 py-3 select-none active:bg-surface ${
+        pinned ? "bg-surface-2/70" : ""
+      }`}
+      onClick={(e) => {
+        e.preventDefault();
+        if (longPressed.current) {
+          longPressed.current = false;
+          return;
+        }
+        router.push(href);
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onLongPress();
+      }}
+      onTouchStart={startPress}
+      onTouchEnd={endPress}
+      onTouchMove={endPress}
+      onTouchCancel={endPress}
+      onMouseDown={(e) => {
+        if (e.button === 0) startPress();
+      }}
+      onMouseUp={endPress}
+      onMouseLeave={endPress}
+    >
+      {children}
+    </a>
+  );
+}
+
+function PinActionSheet({
+  name,
+  pinned,
+  en,
+  onToggle,
+  onClose,
+}: {
+  name: string;
+  pinned: boolean;
+  en: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/45 backdrop-blur-[1px]"
+        aria-label={en ? "Close" : "关闭"}
+        onClick={onClose}
+      />
+      <div className="relative z-10 w-full max-w-md px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4">
+        <div className="overflow-hidden rounded-2xl bg-surface shadow-xl ring-1 ring-black/5">
+          <p className="border-b border-line px-4 py-3 text-center text-xs text-muted">
+            {name}
+          </p>
+          <button
+            type="button"
+            onClick={onToggle}
+            className="flex w-full items-center justify-center gap-2 px-4 py-3.5 text-[16px] font-medium text-accent active:bg-surface-2"
+          >
+            {pinned
+              ? en
+                ? "Unpin chat"
+                : "取消置顶"
+              : en
+                ? "Pin chat"
+                : "置顶聊天"}
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-2 w-full rounded-2xl bg-surface py-3.5 text-[16px] font-semibold shadow-xl ring-1 ring-black/5 active:bg-surface-2"
+        >
+          {en ? "Cancel" : "取消"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({
+  title,
+  desc,
+  cta,
+}: {
+  title: string;
+  desc: string;
+  cta: string;
+}) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-2 p-10 text-center">
       <svg
@@ -311,7 +532,7 @@ function EmptyState({ title, desc }: { title: string; desc: string }) {
         href="/discover"
         className="btn-grad mt-3 rounded-xl px-5 py-2.5 text-sm font-semibold"
       >
-        去发现
+        {cta}
       </Link>
     </div>
   );
