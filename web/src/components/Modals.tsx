@@ -11,10 +11,8 @@ import {
 } from "@/components/ProfileForm";
 import {
   DEMO_OTP,
-  DIAL_OPTIONS,
   type DialCode,
   dialMeta,
-  isValidNational,
   maskE164,
 } from "@/lib/phone";
 import { allowDemoOtp } from "@/lib/authHelpers";
@@ -238,7 +236,6 @@ function RegisterModal() {
   const [cooldown, setCooldown] = useState(0);
   const [agreedLegal, setAgreedLegal] = useState(false);
   const [legalView, setLegalView] = useState<"terms" | "privacy" | null>(null);
-  const [showPhoneForm, setShowPhoneForm] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
 
   const authRegion: "CN" | "US" = region === "CN" ? "CN" : "US";
@@ -252,7 +249,6 @@ function RegisterModal() {
       setAuthErr(null);
       setAgreedLegal(false);
       setLegalView(null);
-      setShowPhoneForm(false);
       setShowEmailForm(false);
       setDraft({
         ...defaultMyProfile,
@@ -270,15 +266,9 @@ function RegisterModal() {
       });
       return;
     }
-    if (region === "CN") {
-      setDial("+86");
-      setShowEmailForm(true);
-      setShowPhoneForm(false);
-    } else {
-      setDial("+1");
-      setShowPhoneForm(true);
-      setShowEmailForm(false);
-    }
+    // SMS pending provider setup — email is the reliable OTP path for both regions.
+    setShowEmailForm(true);
+    setDial(region === "CN" ? "+86" : "+1");
   }, [registerOpen, registerStartStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -296,9 +286,8 @@ function RegisterModal() {
     setRegion(r === "CN" ? "CN" : "global");
     setLocale(r === "CN" ? "zh" : "en");
     setDial(r === "CN" ? "+86" : "+1");
-    // CN: email primary; US: phone SMS primary (under OAuth).
-    setShowPhoneForm(r === "US");
-    setShowEmailForm(r === "CN");
+    // Email OTP until phone SMS provider is live.
+    setShowEmailForm(true);
     setAuthErr(null);
     if (!draft.basicsLocked) {
       patch({
@@ -306,21 +295,6 @@ function RegisterModal() {
         nativeLang: r === "CN" ? "中文" : "English",
         learningLang: r === "CN" ? "English" : "中文",
         chineseVariants: r === "CN" ? ["mandarin"] : [],
-      });
-    }
-  };
-
-  const onDialChange = (d: DialCode) => {
-    setDial(d);
-    const meta = dialMeta(d);
-    setLocale(meta.locale);
-    setRegion(meta.country === "CN" ? "CN" : "global");
-    if (!draft.basicsLocked) {
-      patch({
-        country: meta.country === "OTHER" ? draft.country : meta.country,
-        nativeLang: meta.locale === "zh" ? "中文" : "English",
-        learningLang: meta.locale === "zh" ? "English" : "中文",
-        chineseVariants: meta.locale === "zh" ? ["mandarin"] : [],
       });
     }
   };
@@ -444,50 +418,7 @@ function RegisterModal() {
     draft.age <= 99 &&
     draft.intents.length > 0;
 
-  const phoneOk = isValidNational(dial, national);
   const legalLang = (locale === "en" ? "en" : "zh") as MarketingLocale;
-  const dialOptions =
-    authRegion === "CN"
-      ? DIAL_OPTIONS
-      : DIAL_OPTIONS.filter((o) => o.dial !== "+86");
-
-  const phoneForm = (
-    <div className="space-y-2">
-      <div className="flex gap-2">
-        <select
-          value={dial}
-          onChange={(e) => onDialChange(e.target.value as DialCode)}
-          className="w-[7.5rem] shrink-0 rounded-xl border border-line bg-surface-2 px-2 py-3 text-sm outline-none focus:border-accent"
-        >
-          {dialOptions.map((o) => (
-            <option key={o.dial} value={o.dial}>
-              {o.flag} {o.dial}
-            </option>
-          ))}
-        </select>
-        <input
-          type="tel"
-          inputMode="numeric"
-          value={national}
-          onChange={(e) => setNational(e.target.value)}
-          placeholder={locale === "en" ? "Phone number" : "手机号"}
-          autoComplete="tel-national"
-          onKeyDown={(e) =>
-            e.key === "Enter" && phoneOk && agreedLegal && sendCode()
-          }
-          className="min-w-0 flex-1 rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
-        />
-      </div>
-      <button
-        type="button"
-        disabled={authBusy || !phoneOk || !agreedLegal}
-        onClick={() => void sendCode()}
-        className="w-full rounded-xl bg-[#1c1c1f] py-3.5 font-semibold text-white disabled:opacity-40"
-      >
-        {authBusy ? copy.sending : copy.getCode}
-      </button>
-    </div>
-  );
 
   return (
     <Sheet
@@ -627,7 +558,6 @@ function RegisterModal() {
                     disabled={!agreedLegal}
                     onClick={() => {
                       setShowEmailForm(true);
-                      setShowPhoneForm(false);
                       setAuthErr(null);
                     }}
                     className="w-full rounded-xl border border-line py-3.5 text-sm font-semibold disabled:opacity-40"
@@ -657,75 +587,27 @@ function RegisterModal() {
                     </button>
                   </div>
                 )}
-                {!showPhoneForm ? (
-                  <button
-                    type="button"
-                    disabled={!agreedLegal}
-                    onClick={() => {
-                      setShowPhoneForm(true);
-                      setShowEmailForm(false);
-                      setDial("+86");
-                      setAuthErr(null);
-                    }}
-                    className="w-full text-center text-[12px] text-muted underline-offset-2 hover:underline disabled:opacity-40"
-                  >
-                    {copy.continuePhoneBackup}
-                  </button>
-                ) : (
-                  <>
-                    {phoneForm}
-                    <p className="text-center text-[11px] leading-relaxed text-muted">
-                      {copy.cnSmsBackupHint}
-                    </p>
-                    <button
-                      type="button"
-                      disabled={!agreedLegal}
-                      onClick={() => {
-                        setShowPhoneForm(false);
-                        setShowEmailForm(true);
-                        setAuthErr(null);
-                      }}
-                      className="w-full text-center text-[12px] text-muted underline-offset-2 hover:underline disabled:opacity-40"
-                    >
-                      {copy.continueEmail}
-                    </button>
-                  </>
-                )}
+                <p className="text-center text-[11px] leading-relaxed text-muted">
+                  {copy.cnSmsBackupHint}
+                </p>
               </>
             )}
 
             {authRegion === "US" && (
               <>
-                {!showPhoneForm ? (
+                {!showEmailForm ? (
                   <button
                     type="button"
                     disabled={!agreedLegal}
                     onClick={() => {
-                      setShowPhoneForm(true);
-                      setShowEmailForm(false);
-                      setDial("+1");
+                      setShowEmailForm(true);
                       setAuthErr(null);
                     }}
                     className="w-full rounded-xl border border-line py-3.5 text-sm font-semibold disabled:opacity-40"
                   >
-                    {copy.continuePhone}
+                    {copy.continueEmail}
                   </button>
                 ) : (
-                  phoneForm
-                )}
-                <button
-                  type="button"
-                  disabled={!agreedLegal}
-                  onClick={() => {
-                    setShowEmailForm((v) => !v);
-                    setShowPhoneForm(false);
-                    setAuthErr(null);
-                  }}
-                  className="w-full text-center text-[12px] text-muted underline-offset-2 hover:underline disabled:opacity-40"
-                >
-                  {copy.continueEmail}
-                </button>
-                {showEmailForm && (
                   <div className="space-y-2">
                     <input
                       type="email"
@@ -733,18 +615,24 @@ function RegisterModal() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder={copy.emailPlaceholder}
                       autoComplete="email"
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && email.trim() && sendEmailCode()
+                      }
                       className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
                     />
                     <button
                       type="button"
                       disabled={authBusy || !email.trim() || !agreedLegal}
                       onClick={() => void sendEmailCode()}
-                      className="w-full rounded-xl border border-line py-3 font-semibold disabled:opacity-40"
+                      className="w-full rounded-xl bg-[#1c1c1f] py-3.5 font-semibold text-white disabled:opacity-40"
                     >
                       {authBusy ? copy.sending : copy.getEmailCode}
                     </button>
                   </div>
                 )}
+                <p className="text-center text-[11px] leading-relaxed text-muted">
+                  {copy.usSmsPendingHint}
+                </p>
               </>
             )}
 

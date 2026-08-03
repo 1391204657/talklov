@@ -21,7 +21,7 @@ export const marketingCopy = {
     how1t: "浏览发现",
     how1d: "游客也能看完整资料与照片，感受合拍的人。",
     how2t: "邮箱或手机验证码注册",
-    how2d: "想打招呼时再登录：中国默认邮箱验证码（短信备用），美国可用手机短信；一号一账号更安全。",
+    how2d: "想打招呼时再登录：中国用邮箱验证码，美国用 Google / Apple 或邮箱；手机短信开通后可用。一号一账号更安全。",
     how3t: "真人认证后畅聊",
     how3d: "真人闪验通过后开始聊天，边聊边学、自然交友。",
     featuresTitle: "为中美搭子而生",
@@ -93,7 +93,7 @@ export const marketingCopy = {
     how1t: "Discover",
     how1d: "Guests can browse full profiles and photos before signing up.",
     how2t: "Email or phone signup",
-    how2d: "Sign in when you want to say hi — email code in China (SMS backup), SMS in the US. One phone number per account.",
+    how2d: "Sign in when you want to say hi — email in China; Google / Apple or email in the US. Phone SMS coming soon. One phone number per account.",
     how3t: "Verify, then chat",
     how3d: "Flash Check unlocks chat. Learn while you talk, connect naturally.",
     featuresTitle: "Built for US ↔ China partners",
@@ -155,7 +155,7 @@ export const faqItems = {
     },
     {
       q: "一定要注册才能看吗？",
-      a: "不用。游客可以浏览发现页和完整资料；只有在你想打招呼时才需要注册（中国可用邮箱验证码，美国可用 Google / 手机短信）。",
+      a: "不用。游客可以浏览发现页和完整资料；只有在你想打招呼时才需要注册（中国用邮箱验证码，美国用 Google / Apple 或邮箱；手机短信即将开通）。",
     },
     {
       q: "为什么要真人认证？",
@@ -181,7 +181,7 @@ export const faqItems = {
     },
     {
       q: "Do I need an account to browse?",
-      a: "No. Guests can explore Discover and full profiles. Sign up only when you want to say hi — email code in China, or Google / SMS in the US.",
+      a: "No. Guests can explore Discover and full profiles. Sign up only when you want to say hi — email in China; Google / Apple or email in the US. Phone SMS coming soon.",
     },
     {
       q: "Why verification?",

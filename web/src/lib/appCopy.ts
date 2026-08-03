@@ -57,7 +57,8 @@ export const appCopy = {
     terms: "用户协议",
     privacy: "隐私政策",
     authTitle: "登录 / 注册",
-    authHint: "中国：邮箱验证码优先，短信备用；美国：Google / Apple，或手机短信。",
+    authHint:
+      "中国：邮箱验证码优先；美国：Google / Apple 或邮箱。手机短信开通后会自动出现。",
     authHintAction: (action: string) => `登录后即可${action}。`,
     authRegionCN: "中国",
     authRegionUS: "美国",
@@ -65,11 +66,13 @@ export const appCopy = {
     continueGoogle: "通过 Google 继续",
     continueEmail: "邮箱验证码登录",
     continuePhone: "手机短信登录",
-    continuePhoneBackup: "改用手机短信（备用）",
+    continuePhoneBackup: "手机短信（备用 · 即将开通）",
     emailPlaceholder: "邮箱地址",
     getEmailCode: "发送邮箱验证码",
     cnSmsBackupHint:
-      "短信经国际通道发送，部分大陆号码可能收不到。收不到请改用邮箱。",
+      "手机短信备用通道即将开通。目前请使用邮箱验证码或 Apple 登录。",
+    usSmsPendingHint:
+      "美区暂以 Google / Apple / 邮箱为主；手机短信开通后会自动出现在这里。",
     orDivider: "或",
     getCode: "获取验证码",
     sending: "发送中…",
@@ -148,7 +151,7 @@ export const appCopy = {
     privacy: "Privacy Policy",
     authTitle: "Sign up / Log in",
     authHint:
-      "China: email code first, SMS backup. US: Google / Apple, or phone SMS.",
+      "China: email code first. US: Google / Apple or email. Phone SMS will appear here once enabled.",
     authHintAction: (action: string) => `Sign in to ${action}.`,
     authRegionCN: "China",
     authRegionUS: "United States",
@@ -156,11 +159,13 @@ export const appCopy = {
     continueGoogle: "Continue with Google",
     continueEmail: "Email code",
     continuePhone: "Phone SMS",
-    continuePhoneBackup: "Use phone SMS instead",
+    continuePhoneBackup: "Phone SMS (backup · coming soon)",
     emailPlaceholder: "Email address",
     getEmailCode: "Send email code",
     cnSmsBackupHint:
-      "SMS goes through an international route — some China numbers may not receive it. Prefer email if it fails.",
+      "SMS backup is coming soon. For now, please use email code or Apple.",
+    usSmsPendingHint:
+      "US sign-in is Google / Apple / email for now. Phone SMS will appear here once enabled.",
     orDivider: "or",
     getCode: "Get code",
     sending: "Sending…",

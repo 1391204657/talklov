@@ -10,7 +10,7 @@ export const termsSections: Record<MarketingLocale, LegalSection[]> = {
     },
     {
       h: "2. 账号与登录方式",
-      p: "你可通过邮箱验证码、手机短信验证码，或 Google / Apple 等第三方账号注册与登录。一个手机号仅可绑定一个账号。你有责任妥善保管验证码与设备，不得出借、售卖账号或用于违法用途。",
+      p: "你可通过邮箱验证码，或 Google / Apple 等第三方账号注册与登录；手机短信验证码将在开通后提供。一个手机号仅可绑定一个账号。你有责任妥善保管验证码与设备，不得出借、售卖账号或用于违法用途。",
     },
     {
       h: "3. 用户行为",
@@ -40,7 +40,7 @@ export const termsSections: Record<MarketingLocale, LegalSection[]> = {
     },
     {
       h: "2. Accounts & sign-in",
-      p: "You may sign up with email OTP, phone SMS OTP, or third-party providers such as Google / Apple. One phone number may bind only one account. Keep your codes and devices secure; do not sell or misuse accounts.",
+      p: "You may sign up with email OTP or third-party providers such as Google / Apple; phone SMS OTP will be available once enabled. One phone number may bind only one account. Keep your codes and devices secure; do not sell or misuse accounts.",
     },
     {
       h: "3. Conduct",

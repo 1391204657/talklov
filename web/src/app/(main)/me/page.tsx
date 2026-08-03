@@ -557,8 +557,8 @@ export default function Me() {
                   {effectiveTier === "guest"
                     ? c.phoneNeedLogin
                     : locale === "en"
-                      ? "Optional — SMS login / recovery"
-                      : "可选 · 短信登录 / 找回"}
+                      ? "Optional — SMS coming soon"
+                      : "可选 · 短信登录即将开通"}
                 </div>
               </div>
               <span className="shrink-0 text-muted">›</span>
