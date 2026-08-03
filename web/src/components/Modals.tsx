@@ -704,10 +704,16 @@ function RegisterModal() {
 
       {!legalView && step === 2 && (
         <div className="pb-2">
-          <div className="mb-1 text-xs text-muted">资料 1 / 3</div>
-          <h3 className="text-xl font-bold">基本信息</h3>
+          <div className="mb-1 text-xs text-muted">
+            {locale === "en" ? "Profile 1 / 3" : "资料 1 / 3"}
+          </div>
+          <h3 className="text-xl font-bold">
+            {locale === "en" ? "Basics" : "基本信息"}
+          </h3>
           <p className="mt-1 text-sm text-muted">
-            性别、年龄、国家保存后不可修改，请认真填写。
+            {locale === "en"
+              ? "Gender, age, and country can’t be changed later — choose carefully."
+              : "性别、年龄、国家保存后不可修改，请认真填写。"}
           </p>
           <div className="mt-4">
             <ProfileBasicsFields value={draft} onChange={patch} />
@@ -717,17 +723,23 @@ function RegisterModal() {
             onClick={() => setStep(3)}
             className="btn-grad mt-5 w-full rounded-xl py-3 font-semibold disabled:opacity-40"
           >
-            下一步 →
+            {locale === "en" ? "Next →" : "下一步 →"}
           </button>
         </div>
       )}
 
       {!legalView && step === 3 && (
         <div className="pb-2">
-          <div className="mb-1 text-xs text-muted">资料 2 / 3</div>
-          <h3 className="text-xl font-bold">关于你</h3>
+          <div className="mb-1 text-xs text-muted">
+            {locale === "en" ? "Profile 2 / 3" : "资料 2 / 3"}
+          </div>
+          <h3 className="text-xl font-bold">
+            {locale === "en" ? "About you" : "关于你"}
+          </h3>
           <p className="mt-1 text-sm text-muted">
-            城市、职业、爱好等会提高匹配质量，可稍后再补。
+            {locale === "en"
+              ? "City, work, and interests improve matches — you can fill more later."
+              : "城市、职业、爱好等会提高匹配质量，可稍后再补。"}
           </p>
           <div className="mt-4">
             <ProfileAboutFields value={draft} onChange={patch} />
@@ -737,13 +749,13 @@ function RegisterModal() {
               onClick={() => setStep(2)}
               className="flex-1 rounded-xl border border-line py-3 text-sm"
             >
-              上一步
+              {locale === "en" ? "Back" : "上一步"}
             </button>
             <button
               onClick={() => setStep(4)}
               className="btn-grad flex-[2] rounded-xl py-3 font-semibold"
             >
-              下一步 →
+              {locale === "en" ? "Next →" : "下一步 →"}
             </button>
           </div>
         </div>
@@ -751,8 +763,12 @@ function RegisterModal() {
 
       {!legalView && step === 4 && (
         <div className="pb-2">
-          <div className="mb-1 text-xs text-muted">资料 3 / 3</div>
-          <h3 className="text-xl font-bold">照片</h3>
+          <div className="mb-1 text-xs text-muted">
+            {locale === "en" ? "Profile 3 / 3" : "资料 3 / 3"}
+          </div>
+          <h3 className="text-xl font-bold">
+            {locale === "en" ? "Photos" : "照片"}
+          </h3>
           <div className="mt-3 rounded-xl border border-line bg-surface-2 p-3">
             <CompletenessBar profile={draft} verified={false} />
           </div>
@@ -765,20 +781,24 @@ function RegisterModal() {
               onClick={() => finish(true)}
               className="btn-grad w-full rounded-xl py-3 font-semibold disabled:opacity-40"
             >
-              保存并去真人认证 🛡️
+              {locale === "en"
+                ? "Save & get verified 🛡️"
+                : "保存并去真人认证 🛡️"}
             </button>
             <button
               disabled={draft.photos.length < 1}
               onClick={() => finish(false)}
               className="w-full rounded-xl border border-line py-2.5 text-sm text-muted disabled:opacity-40"
             >
-              稍后再认证，先去打招呼 →
+              {locale === "en"
+                ? "Skip verification for now →"
+                : "稍后再认证，先去打招呼 →"}
             </button>
             <button
               onClick={() => setStep(3)}
               className="w-full py-1 text-center text-sm text-muted"
             >
-              上一步
+              {locale === "en" ? "Back" : "上一步"}
             </button>
           </div>
         </div>

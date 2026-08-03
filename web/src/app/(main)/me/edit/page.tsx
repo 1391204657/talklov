@@ -13,7 +13,8 @@ import {
 import type { MyProfile } from "@/lib/profile";
 
 export default function EditProfile() {
-  const { tier, myProfile, updateMyProfile, openRegister } = useApp();
+  const { tier, myProfile, updateMyProfile, openRegister, locale } = useApp();
+  const en = locale === "en";
   const router = useRouter();
   const [draft, setDraft] = useState<MyProfile>({ ...myProfile });
   const [saved, setSaved] = useState(false);
@@ -21,12 +22,14 @@ export default function EditProfile() {
   if (tier === "guest") {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-        <p className="text-muted">登录后才能编辑资料</p>
+        <p className="text-muted">
+          {en ? "Sign in to edit your profile" : "登录后才能编辑资料"}
+        </p>
         <button
-          onClick={() => openRegister("编辑资料")}
+          onClick={() => openRegister(en ? "edit profile" : "编辑资料")}
           className="btn-grad rounded-xl px-5 py-2.5 text-sm font-semibold"
         >
-          注册 / 登录
+          {en ? "Sign up / Log in" : "注册 / 登录"}
         </button>
       </main>
     );
@@ -47,7 +50,9 @@ export default function EditProfile() {
         <Link href="/me" className="text-xl">
           ←
         </Link>
-        <h1 className="text-lg font-bold">编辑资料</h1>
+        <h1 className="text-lg font-bold">
+          {en ? "Edit profile" : "编辑资料"}
+        </h1>
       </header>
 
       <div className="space-y-6 p-4">
@@ -59,7 +64,9 @@ export default function EditProfile() {
         </div>
 
         <section>
-          <h2 className="mb-3 font-semibold">基本信息</h2>
+          <h2 className="mb-3 font-semibold">
+            {en ? "Basics" : "基本信息"}
+          </h2>
           <ProfileBasicsFields
             value={draft}
             onChange={patch}
@@ -68,12 +75,16 @@ export default function EditProfile() {
         </section>
 
         <section>
-          <h2 className="mb-3 font-semibold">关于你</h2>
+          <h2 className="mb-3 font-semibold">
+            {en ? "About you" : "关于你"}
+          </h2>
           <ProfileAboutFields value={draft} onChange={patch} />
         </section>
 
         <section>
-          <h2 className="mb-3 font-semibold">照片（最多 3 张）</h2>
+          <h2 className="mb-3 font-semibold">
+            {en ? "Photos (up to 3)" : "照片（最多 3 张）"}
+          </h2>
           <ProfilePhotoFields value={draft} onChange={patch} />
         </section>
 
@@ -82,7 +93,13 @@ export default function EditProfile() {
           disabled={!draft.name.trim() || draft.photos.length < 1}
           className="btn-grad w-full rounded-2xl py-3.5 font-semibold disabled:opacity-40"
         >
-          {saved ? "已保存 ✓" : "保存资料"}
+          {saved
+            ? en
+              ? "Saved ✓"
+              : "已保存 ✓"
+            : en
+              ? "Save profile"
+              : "保存资料"}
         </button>
       </div>
     </main>

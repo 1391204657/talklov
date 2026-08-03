@@ -15,11 +15,17 @@ import {
 import { ChineseVariant, Intent } from "@/lib/types";
 import { compressImageFile } from "@/lib/photoUpload";
 import { VoiceIntroRecorder } from "@/components/VoiceIntroRecorder";
+import { useApp } from "@/lib/store";
 
-const intentOpts: { id: Intent; label: string }[] = [
-  { id: "language", label: "语伴" },
-  { id: "friends", label: "交友" },
-  { id: "romance", label: "缘分" },
+function useFormLocale() {
+  const { locale } = useApp();
+  return locale === "en" ? "en" : "zh";
+}
+
+const intentOpts: { id: Intent; zh: string; en: string }[] = [
+  { id: "language", zh: "语伴", en: "Language" },
+  { id: "friends", zh: "交友", en: "Friends" },
+  { id: "romance", zh: "缘分", en: "Dating" },
 ];
 
 export function CompletenessBar({
@@ -29,11 +35,15 @@ export function CompletenessBar({
   profile: MyProfile;
   verified: boolean;
 }) {
-  const { percent, missing } = profileCompleteness(profile, verified);
+  const lang = useFormLocale();
+  const en = lang === "en";
+  const { percent, missing } = profileCompleteness(profile, verified, lang);
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-sm">
-        <span className="font-medium">资料完善度</span>
+        <span className="font-medium">
+          {en ? "Profile completeness" : "资料完善度"}
+        </span>
         <span className="tabular-nums text-accent">{percent}%</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-surface-2">
@@ -44,8 +54,9 @@ export function CompletenessBar({
       </div>
       {missing.length > 0 && percent < 100 && (
         <p className="mt-1.5 text-[11px] text-muted">
-          还可完善：{missing.slice(0, 4).join("、")}
-          {missing.length > 4 ? "…" : ""}
+          {en ? "Still missing: " : "还可完善："}
+          {missing.slice(0, 4).join(en ? ", " : "、")}
+          {missing.length > 4 ? (en ? "…" : "…") : ""}
         </p>
       )}
     </div>
@@ -63,20 +74,35 @@ export function ProfileBasicsFields({
   onChange: (p: Partial<Draft>) => void;
   locked?: boolean;
 }) {
+  const en = useFormLocale() === "en";
+  const lockedHint = locked
+    ? en
+      ? "Locked after signup"
+      : "注册后不可修改"
+    : en
+      ? "Cannot change later"
+      : "之后不可修改";
+
   return (
     <div className="space-y-3">
-      <Field label="昵称 *">
+      <Field label={en ? "Display name *" : "昵称 *"}>
         <input
           value={value.name}
           onChange={(e) => onChange({ name: e.target.value })}
-          placeholder="你希望别人怎么称呼你"
+          placeholder={en ? "What should people call you?" : "你希望别人怎么称呼你"}
           className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
         />
       </Field>
 
       <Field
-        label="性别 *"
-        hint={locked ? "注册后不可修改" : "请如实选择，之后不可修改"}
+        label={en ? "Gender *" : "性别 *"}
+        hint={
+          locked
+            ? lockedHint
+            : en
+              ? "Please choose carefully — cannot change later"
+              : "请如实选择，之后不可修改"
+        }
       >
         <div className="grid grid-cols-2 gap-2">
           {(["male", "female"] as const).map((g) => (
@@ -91,16 +117,19 @@ export function ProfileBasicsFields({
                   : "border-line"
               }`}
             >
-              {g === "male" ? "男 Male" : "女 Female"}
+              {g === "male"
+                ? en
+                  ? "Male"
+                  : "男 Male"
+                : en
+                  ? "Female"
+                  : "女 Female"}
             </button>
           ))}
         </div>
       </Field>
 
-      <Field
-        label="年龄 *"
-        hint={locked ? "注册后不可修改" : "之后不可修改"}
-      >
+      <Field label={en ? "Age *" : "年龄 *"} hint={lockedHint}>
         <input
           type="number"
           min={18}
@@ -117,16 +146,13 @@ export function ProfileBasicsFields({
         />
       </Field>
 
-      <Field
-        label="国家 / 地区 *"
-        hint={locked ? "注册后不可修改" : "之后不可修改"}
-      >
+      <Field label={en ? "Country / region *" : "国家 / 地区 *"} hint={lockedHint}>
         <div className="grid grid-cols-3 gap-2">
           {(
             [
-              ["US", "🇺🇸 美国"],
-              ["CN", "🇨🇳 中国"],
-              ["OTHER", "🌍 其他"],
+              ["US", en ? "🇺🇸 US" : "🇺🇸 美国"],
+              ["CN", en ? "🇨🇳 China" : "🇨🇳 中国"],
+              ["OTHER", en ? "🌍 Other" : "🌍 其他"],
             ] as [CountryCode, string][]
           ).map(([id, label]) => (
             <button
@@ -146,7 +172,7 @@ export function ProfileBasicsFields({
         </div>
       </Field>
 
-      <Field label="意图（可多选）">
+      <Field label={en ? "Looking for (multi-select)" : "意图（可多选）"}>
         <div className="flex flex-wrap gap-2">
           {intentOpts.map((i) => {
             const on = value.intents.includes(i.id);
@@ -167,7 +193,7 @@ export function ProfileBasicsFields({
                     : "border-line"
                 }`}
               >
-                {i.label}
+                {en ? i.en : i.zh}
               </button>
             );
           })}
@@ -184,6 +210,7 @@ export function ProfileAboutFields({
   value: Draft;
   onChange: (p: Partial<Draft>) => void;
 }) {
+  const en = useFormLocale() === "en";
   const toggleInterest = (t: string) => {
     const on = value.interests.includes(t);
     onChange({
@@ -197,29 +224,31 @@ export function ProfileAboutFields({
     <div className="space-y-3">
       <ProfileLangFields value={value} onChange={onChange} />
 
-      <Field label="城市">
+      <Field label={en ? "City" : "城市"}>
         <input
           value={value.city}
           onChange={(e) => onChange({ city: e.target.value })}
-          placeholder="如：上海 / Austin"
+          placeholder={en ? "e.g. Austin / Shanghai" : "如：上海 / Austin"}
           className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
         />
       </Field>
-      <Field label="职业">
+      <Field label={en ? "Occupation" : "职业"}>
         <input
           value={value.occupation}
           onChange={(e) => onChange({ occupation: e.target.value })}
-          placeholder="如：产品经理 / Software engineer"
+          placeholder={
+            en ? "e.g. Product manager / Engineer" : "如：产品经理 / Software engineer"
+          }
           className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
         />
       </Field>
-      <Field label="学历">
+      <Field label={en ? "Education" : "学历"}>
         <select
           value={value.education}
           onChange={(e) => onChange({ education: e.target.value })}
           className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
         >
-          <option value="">选填</option>
+          <option value="">{en ? "Optional" : "选填"}</option>
           {EDUCATION_OPTIONS.map((o) => (
             <option key={o} value={o}>
               {o}
@@ -227,13 +256,13 @@ export function ProfileAboutFields({
           ))}
         </select>
       </Field>
-      <Field label="星座">
+      <Field label={en ? "Zodiac" : "星座"}>
         <select
           value={value.zodiac}
           onChange={(e) => onChange({ zodiac: e.target.value })}
           className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
         >
-          <option value="">选填</option>
+          <option value="">{en ? "Optional" : "选填"}</option>
           {ZODIAC_OPTIONS.map((o) => (
             <option key={o} value={o}>
               {o}
@@ -241,19 +270,27 @@ export function ProfileAboutFields({
           ))}
         </select>
       </Field>
-      <Field label="自我介绍">
+      <Field label={en ? "About me" : "自我介绍"}>
         <textarea
           value={value.bio}
           onChange={(e) => onChange({ bio: e.target.value })}
           rows={3}
-          placeholder="用几句话介绍自己，中英都可以～"
+          placeholder={
+            en
+              ? "A few lines about you — English or Chinese is fine."
+              : "用几句话介绍自己，中英都可以～"
+          }
           className="w-full resize-none rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
         />
       </Field>
-      <Field label="语音打招呼（发现页可播放）">
+      <Field
+        label={
+          en ? "Voice hello (playable on Discover)" : "语音打招呼（发现页可播放）"
+        }
+      >
         <VoiceIntroRecorder value={value} onChange={onChange} />
       </Field>
-      <Field label="爱好（最多 8 个）">
+      <Field label={en ? "Interests (up to 8)" : "爱好（最多 8 个）"}>
         <div className="flex flex-wrap gap-2">
           {INTEREST_SUGGESTIONS.map((t) => {
             const on = value.interests.includes(t);
@@ -285,11 +322,12 @@ export function ProfileLangFields({
   value: Draft;
   onChange: (p: Partial<Draft>) => void;
 }) {
+  const en = useFormLocale() === "en";
   const levels = levelOptionsFor(value.learningLang);
 
   return (
     <div className="space-y-3 rounded-2xl border border-line bg-surface/60 p-3.5">
-      <Field label="母语 *">
+      <Field label={en ? "Native language *" : "母语 *"}>
         <div className="grid grid-cols-3 gap-2">
           {NATIVE_LANG_OPTIONS.map((lang) => (
             <button
@@ -307,7 +345,9 @@ export function ProfileLangFields({
                 })
               }
               className={`rounded-xl border py-2 text-sm ${
-                (lang === "其他 Other" ? value.nativeLang === "其他" : value.nativeLang === lang)
+                (lang === "其他 Other"
+                  ? value.nativeLang === "其他"
+                  : value.nativeLang === lang)
                   ? "border-accent bg-accent/10 text-accent"
                   : "border-line"
               }`}
@@ -319,7 +359,10 @@ export function ProfileLangFields({
       </Field>
 
       {value.nativeLang === "中文" && (
-        <Field label="中文变体（可多选）" hint="会说的都勾上">
+        <Field
+          label={en ? "Chinese variants (multi-select)" : "中文变体（可多选）"}
+          hint={en ? "Select all you speak" : "会说的都勾上"}
+        >
           <div className="grid grid-cols-2 gap-2">
             {(
               [
@@ -353,7 +396,7 @@ export function ProfileLangFields({
         </Field>
       )}
 
-      <Field label="在学语言 *">
+      <Field label={en ? "Learning *" : "在学语言 *"}>
         <div className="grid grid-cols-3 gap-2">
           {LEARNING_LANG_OPTIONS.map((lang) => (
             <button
@@ -381,7 +424,10 @@ export function ProfileLangFields({
         </div>
       </Field>
 
-      <Field label="语言级别 *" hint="你在学语言的水平">
+      <Field
+        label={en ? "Level *" : "语言级别 *"}
+        hint={en ? "Your level in the language you’re learning" : "你在学语言的水平"}
+      >
         <div className="flex flex-wrap gap-2">
           {levels.map((lv) => (
             <button
@@ -410,6 +456,7 @@ export function ProfilePhotoFields({
   value: Draft;
   onChange: (p: Partial<Draft>) => void;
 }) {
+  const en = useFormLocale() === "en";
   const onPick = async (files: FileList | null) => {
     if (!files?.length) return;
     const room = MAX_PHOTOS - value.photos.length;
@@ -417,7 +464,6 @@ export function ProfilePhotoFields({
     const urls: string[] = [];
     for (const f of picked) {
       if (!f.type.startsWith("image/")) continue;
-      // Compress so photos fit localStorage and still show on Discover (data: not in DB yet).
       if (f.size > 12 * 1024 * 1024) continue;
       try {
         urls.push(await compressImageFile(f));
@@ -431,7 +477,9 @@ export function ProfilePhotoFields({
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted">
-        建议上传清晰自拍。最多 {MAX_PHOTOS} 张，至少 1 张。
+        {en
+          ? `Clear selfies work best. Up to ${MAX_PHOTOS} photos, at least 1.`
+          : `建议上传清晰自拍。最多 ${MAX_PHOTOS} 张，至少 1 张。`}
       </p>
       <div className="grid grid-cols-3 gap-2">
         {value.photos.map((src, i) => (
@@ -454,7 +502,7 @@ export function ProfilePhotoFields({
             </button>
             {i === 0 && (
               <span className="absolute bottom-1 left-1 rounded bg-black/55 px-1.5 text-[10px] text-white">
-                主图
+                {en ? "Main" : "主图"}
               </span>
             )}
           </div>
@@ -462,7 +510,7 @@ export function ProfilePhotoFields({
         {value.photos.length < MAX_PHOTOS && (
           <label className="flex aspect-[3/4] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-line text-sm text-muted">
             <span className="text-2xl">＋</span>
-            添加照片
+            {en ? "Add photo" : "添加照片"}
             <input
               type="file"
               accept="image/*"
@@ -499,4 +547,3 @@ function Field({
     </div>
   );
 }
-

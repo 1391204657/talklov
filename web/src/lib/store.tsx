@@ -224,6 +224,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setNotifyPrefsState((prev) => ({ ...prev, push: true }));
         localStorage.setItem("talklov_notify_push_default_v1", "1");
       }
+      // Promo links: ?lang=zh|en (or ?locale=) override saved UI language for this visit.
+      const q = new URLSearchParams(window.location.search);
+      const lang = (q.get("lang") || q.get("locale") || "").trim().toLowerCase();
+      if (lang === "en" || lang === "zh") {
+        setLocale(lang);
+        if (lang === "en") setRegion("global");
+        if (lang === "zh") setRegion("CN");
+      }
     } catch {}
     setHydrated(true);
   }, []);

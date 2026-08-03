@@ -53,25 +53,48 @@ export const defaultMyProfile: MyProfile = {
 };
 
 /** Fields that contribute to the completeness meter (verified is a bonus). */
-const WEIGHTS: { key: keyof MyProfile | "verified"; label: string; w: number }[] =
-  [
-    { key: "name", label: "昵称", w: 10 },
-    { key: "gender", label: "性别", w: 5 },
-    { key: "age", label: "年龄", w: 10 },
-    { key: "country", label: "国家", w: 5 },
-    { key: "city", label: "城市", w: 8 },
-    { key: "photos", label: "照片", w: 15 },
-    { key: "bio", label: "自我介绍", w: 12 },
-    { key: "voiceIntroUrl", label: "语音介绍", w: 6 },
-    { key: "interests", label: "爱好", w: 10 },
-    { key: "occupation", label: "职业", w: 6 },
-    { key: "education", label: "学历", w: 4 },
-    { key: "zodiac", label: "星座", w: 3 },
-    { key: "intents", label: "意图", w: 6 },
-    { key: "nativeLang", label: "母语", w: 3 },
-    { key: "learningLang", label: "在学语言", w: 3 },
-    { key: "level", label: "语言级别", w: 4 },
-  ];
+const WEIGHTS: {
+  key: keyof MyProfile | "verified";
+  id: string;
+  w: number;
+}[] = [
+  { key: "name", id: "name", w: 10 },
+  { key: "gender", id: "gender", w: 5 },
+  { key: "age", id: "age", w: 10 },
+  { key: "country", id: "country", w: 5 },
+  { key: "city", id: "city", w: 8 },
+  { key: "photos", id: "photos", w: 15 },
+  { key: "bio", id: "bio", w: 12 },
+  { key: "voiceIntroUrl", id: "voice", w: 6 },
+  { key: "interests", id: "interests", w: 10 },
+  { key: "occupation", id: "occupation", w: 6 },
+  { key: "education", id: "education", w: 4 },
+  { key: "zodiac", id: "zodiac", w: 3 },
+  { key: "intents", id: "intents", w: 6 },
+  { key: "nativeLang", id: "nativeLang", w: 3 },
+  { key: "learningLang", id: "learningLang", w: 3 },
+  { key: "level", id: "level", w: 4 },
+];
+
+const COMPLETENESS_LABELS: Record<string, { zh: string; en: string }> = {
+  name: { zh: "昵称", en: "Name" },
+  gender: { zh: "性别", en: "Gender" },
+  age: { zh: "年龄", en: "Age" },
+  country: { zh: "国家", en: "Country" },
+  city: { zh: "城市", en: "City" },
+  photos: { zh: "照片", en: "Photos" },
+  bio: { zh: "自我介绍", en: "Bio" },
+  voice: { zh: "语音介绍", en: "Voice intro" },
+  interests: { zh: "爱好", en: "Interests" },
+  occupation: { zh: "职业", en: "Occupation" },
+  education: { zh: "学历", en: "Education" },
+  zodiac: { zh: "星座", en: "Zodiac" },
+  intents: { zh: "意图", en: "Intents" },
+  nativeLang: { zh: "母语", en: "Native language" },
+  learningLang: { zh: "在学语言", en: "Learning" },
+  level: { zh: "语言级别", en: "Level" },
+  verified: { zh: "真人认证", en: "Verification" },
+};
 
 const VERIFIED_BONUS = 10;
 
@@ -84,9 +107,19 @@ function filled(p: MyProfile, key: keyof MyProfile): boolean {
   return true;
 }
 
+export function completenessFieldLabel(
+  id: string,
+  locale: "zh" | "en" = "zh"
+): string {
+  const row = COMPLETENESS_LABELS[id];
+  if (!row) return id;
+  return locale === "en" ? row.en : row.zh;
+}
+
 export function profileCompleteness(
   p: MyProfile,
-  verified = false
+  verified = false,
+  locale: "zh" | "en" = "zh"
 ): { percent: number; missing: string[]; total: number; earned: number } {
   let earned = 0;
   const missing: string[] = [];
@@ -95,11 +128,11 @@ export function profileCompleteness(
     if (item.key === "verified") continue;
     total += item.w;
     if (filled(p, item.key as keyof MyProfile)) earned += item.w;
-    else missing.push(item.label);
+    else missing.push(completenessFieldLabel(item.id, locale));
   }
   total += VERIFIED_BONUS;
   if (verified) earned += VERIFIED_BONUS;
-  else missing.push("真人认证");
+  else missing.push(completenessFieldLabel("verified", locale));
 
   const percent = Math.min(100, Math.round((earned / total) * 100));
   return { percent, missing, total, earned };

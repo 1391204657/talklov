@@ -18,15 +18,15 @@ function MiniCard({ profile }: { profile: Profile }) {
         />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
 
-        {profile.online && (
+            {profile.online && (
           <span className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-black/40 px-1.5 py-0.5 text-[7px] text-white backdrop-blur-sm">
             <span className="h-1 w-1 rounded-full bg-success" />
-            在线
+            Online
           </span>
         )}
         {profile.verified && (
           <span className="absolute right-1.5 top-1.5 rounded-full bg-sky-500/90 px-1.5 py-0.5 text-[7px] font-medium text-white">
-            已认证
+            ✓
           </span>
         )}
 
@@ -157,7 +157,7 @@ export function DeviceShowcase({
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background to-transparent" />
           </div>
           <div className="grid grid-cols-5 border-t border-line bg-surface/80 py-1.5 text-center text-[7px] text-muted">
-            {["发现", "消息", "动态", "练遇", "我的"].map((l, i) => (
+            {["Discover", "Chats", "Moments", "Lianyu", "Me"].map((l, i) => (
               <span key={l} className={i === 0 ? "text-accent" : ""}>
                 {l}
               </span>
