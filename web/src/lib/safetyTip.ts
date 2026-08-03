@@ -1,5 +1,29 @@
 /** Messenger-style chat safety tips for money / contact / immigration risk. */
 
+const BANNER_DISMISS_KEY = "talklov_chat_safety_banner_v1";
+
+/** Top chat safety banner: dismissed once per conversation until storage clears. */
+export function isChatSafetyBannerDismissed(chatId: string): boolean {
+  if (!chatId || typeof window === "undefined") return false;
+  try {
+    const raw = localStorage.getItem(BANNER_DISMISS_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    return Boolean(map[chatId]);
+  } catch {
+    return false;
+  }
+}
+
+export function dismissChatSafetyBanner(chatId: string): void {
+  if (!chatId || typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(BANNER_DISMISS_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    map[chatId] = true;
+    localStorage.setItem(BANNER_DISMISS_KEY, JSON.stringify(map));
+  } catch {}
+}
+
 export type SafetyKind =
   | "money"
   | "contact"

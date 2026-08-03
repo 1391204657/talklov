@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { sampleChat } from "@/lib/mockData";
 import { ChatMessage } from "@/lib/types";
 import { useApp } from "@/lib/store";
@@ -10,10 +10,20 @@ import { takeOpener } from "@/lib/openers";
 import { consumeOpenerDraft } from "@/lib/datingSim";
 import { isAiPersona, takeAiWelcomeReply } from "@/lib/aiPersonas";
 import ImageLightbox from "@/components/ImageLightbox";
+import MessageActionMenu, {
+  type MessageAction,
+} from "@/components/MessageActionMenu";
 import { compressImageFile } from "@/lib/photoUpload";
 import { useCallOptional } from "@/components/calls/CallProvider";
 import { moderateContent } from "@/lib/moderation/client";
-import { scanSafetyTip, safetyTipCopy, type SafetyHit } from "@/lib/safetyTip";
+import {
+  dismissChatSafetyBanner,
+  isChatSafetyBannerDismissed,
+  scanSafetyTip,
+  safetyTipCopy,
+  type SafetyHit,
+} from "@/lib/safetyTip";
+import { tChat } from "@/lib/chatCopy";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   resolveConversation,
@@ -64,7 +74,10 @@ export default function Chat() {
     userId,
     notifyPrefs,
     applyUnreadBadge,
+    locale,
+    isBanned,
   } = useApp();
+  const chatT = tChat(locale === "en" ? "en" : "zh");
   const { profile } = useProfile(params.id);
   const useBackend = configured && !!userId && !isAiPersona(params.id);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -78,7 +91,7 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [showTrans, setShowTrans] = useState<Record<string, boolean>>({});
   const [autoTranslate, setAutoTranslate] = useState(true);
-  const [showSafety, setShowSafety] = useState(true);
+  const [showSafety, setShowSafety] = useState(false);
   const [scamWarn, setScamWarn] = useState(false);
   const [safetyTip, setSafetyTip] = useState<{
     hit: SafetyHit;
@@ -105,6 +118,10 @@ export default function Chat() {
     secs: number;
   } | null>(null);
   const [draftPlaying, setDraftPlaying] = useState(false);
+  const [menuMsg, setMenuMsg] = useState<ChatMessage | null>(null);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [hiddenIds, setHiddenIds] = useState<Record<string, true>>({});
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -113,6 +130,8 @@ export default function Chat() {
   const listRef = useRef<HTMLDivElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressMoved = useRef(false);
 
   function pickRecorderMime(): string | undefined {
     if (typeof MediaRecorder === "undefined") return undefined;
@@ -142,6 +161,12 @@ export default function Chat() {
     markLocalConvoRead(profile.id);
     applyUnreadBadge(totalUnread());
   }, [profile, applyUnreadBadge]);
+
+  // Top safety banner: once dismissed for this chat, stay hidden on re-entry.
+  useEffect(() => {
+    if (!params.id) return;
+    setShowSafety(!isChatSafetyBannerDismissed(params.id));
+  }, [params.id]);
 
   // Seed opener from profile hello, and/or AI practice draft into composer.
   // AI personas: after opener, auto-request a welcome reply once.
@@ -270,7 +295,7 @@ export default function Chat() {
         <svg viewBox="0 0 48 48" className="h-12 w-12 text-muted" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M24 4 6 12v12c0 11 18 18 18 18s18-7 18-18V12L24 4Z" /></svg>
         <h2 className="text-xl font-bold">聊天前需要真人认证</h2>
         <p className="text-sm text-muted">
-          为防止骗子与虚假账号，进入会话前请先完成真人核验（自拍活体，不采集证件实名）。
+          为防止骗子与虚假账号，进入会话前请先完成真人闪验（不采集证件实名）。
         </p>
         <button
           onClick={() => openVerify(`和 ${profile.name} 聊天`)}
@@ -331,12 +356,110 @@ export default function Chat() {
     }
   };
 
+  const messagePreview = (m: ChatMessage) => {
+    if (m.kind === "image") return locale === "en" ? "[Photo]" : "[图片]";
+    if (m.kind === "video") return locale === "en" ? "[Video]" : "[视频]";
+    if (m.kind === "voice") {
+      return locale === "en"
+        ? `[Voice ${m.durationSec ?? ""}″]`
+        : `[语音 ${m.durationSec ?? ""}″]`;
+    }
+    return m.text;
+  };
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 2200);
+  };
+
+  const clearLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const openMsgMenu = (m: ChatMessage) => {
+    if (m.fromMe) return;
+    setMenuMsg(m);
+  };
+
+  const peerPressHandlers = (m: ChatMessage) =>
+    m.fromMe
+      ? {}
+      : {
+          onContextMenu: (e: MouseEvent) => {
+            e.preventDefault();
+            openMsgMenu(m);
+          },
+          onTouchStart: () => {
+            longPressMoved.current = false;
+            clearLongPress();
+            longPressTimer.current = setTimeout(() => {
+              if (!longPressMoved.current) openMsgMenu(m);
+            }, 420);
+          },
+          onTouchMove: () => {
+            longPressMoved.current = true;
+            clearLongPress();
+          },
+          onTouchEnd: clearLongPress,
+          onTouchCancel: clearLongPress,
+        };
+
+  const onMessageAction = async (action: MessageAction) => {
+    if (!menuMsg) return;
+    const target = menuMsg;
+    setMenuMsg(null);
+    if (action === "reply") {
+      setReplyTo(target);
+      return;
+    }
+    if (action === "copy") {
+      const text = messagePreview(target);
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast(chatT.copied);
+      } catch {
+        showToast(chatT.copied);
+      }
+      return;
+    }
+    if (action === "forward") {
+      const text = messagePreview(target);
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {}
+      showToast(chatT.forwardHint);
+      return;
+    }
+    if (action === "delete") {
+      setHiddenIds((h) => ({ ...h, [target.id]: true }));
+      if (replyTo?.id === target.id) setReplyTo(null);
+      showToast(chatT.deleted);
+    }
+  };
+
+  const onReact = (emoji: string) => {
+    if (!menuMsg) return;
+    const id = menuMsg.id;
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === id
+          ? { ...m, reaction: m.reaction === emoji ? null : emoji }
+          : m
+      )
+    );
+    setMenuMsg(null);
+  };
+
   const deliverText = async (text: string) => {
     const mod = await moderateContent({ text });
     if (!mod.allowed) {
       alert(mod.reason || "内容未通过安全审核，无法发送。");
       return;
     }
+    const replyPreview = replyTo ? messagePreview(replyTo) : null;
     const userMsg: ChatMessage = {
       id: `m${Date.now()}`,
       fromMe: true,
@@ -346,15 +469,20 @@ export default function Chat() {
         ? "（自动翻译预览：译文会显示在这里）"
         : undefined,
       time: "刚刚",
+      replyPreview,
     };
     if (useBackend && conversationId) {
-      dbSendMessage(conversationId, { kind: "text", content: text }).catch(
+      const payload = replyPreview
+        ? `↩️ ${replyPreview.slice(0, 80)}\n${text}`
+        : text;
+      dbSendMessage(conversationId, { kind: "text", content: payload }).catch(
         () => {}
       );
     } else {
       setMessages((m) => [...m, userMsg]);
     }
     setInput("");
+    setReplyTo(null);
     setPolish(null);
     setIcebreakers(null);
     setSafetyTip(null);
@@ -365,6 +493,14 @@ export default function Chat() {
   };
 
   const send = async (opts?: { bypassSafety?: boolean }) => {
+    if (isBanned) {
+      setToast(
+        locale === "en"
+          ? "Account restricted — can’t send messages."
+          : "账号已受限，无法发送消息。"
+      );
+      return;
+    }
     const text = input.trim();
     if (!text) return;
     if (scanHardScam(text)) {
@@ -788,7 +924,15 @@ export default function Chat() {
           <span className="flex-1">
             安全提醒：任何要求<b>转账、汇款、投资</b>的都是诈骗。请勿在平台外私下交易。
           </span>
-          <button onClick={() => setShowSafety(false)} className="text-warn/70">
+          <button
+            type="button"
+            onClick={() => {
+              dismissChatSafetyBanner(params.id);
+              setShowSafety(false);
+            }}
+            className="text-warn/70"
+            aria-label="关闭"
+          >
             ✕
           </button>
         </div>
@@ -798,16 +942,29 @@ export default function Chat() {
         ref={listRef}
         className="min-h-0 flex-1 space-y-3 overflow-y-auto no-scrollbar p-4"
       >
-        {messages.map((m) => (
+        {messages
+          .filter((m) => !hiddenIds[m.id])
+          .map((m) => (
           <div
             key={m.id}
             className={`flex ${m.fromMe ? "justify-end" : "justify-start"}`}
           >
-            <div className="max-w-[78%]">
+            <div className="max-w-[78%] select-none">
+              {m.replyPreview && (
+                <div
+                  className={`mb-1 rounded-xl border-l-2 border-accent/60 bg-surface px-2.5 py-1.5 text-[12px] text-muted ${
+                    m.fromMe ? "ml-auto" : ""
+                  }`}
+                >
+                  <div className="font-medium text-accent/90">{chatT.replyTo}</div>
+                  <div className="line-clamp-2">{m.replyPreview}</div>
+                </div>
+              )}
               {m.kind === "image" && m.mediaUrl ? (
                 <button
                   type="button"
                   onClick={() => setLightboxSrc(m.mediaUrl!)}
+                  {...peerPressHandlers(m)}
                   className={`overflow-hidden rounded-2xl ${
                     m.fromMe ? "rounded-br-md" : "rounded-bl-md"
                   }`}
@@ -821,6 +978,7 @@ export default function Chat() {
                 </button>
               ) : m.kind === "video" && m.mediaUrl ? (
                 <div
+                  {...peerPressHandlers(m)}
                   className={`overflow-hidden rounded-2xl ${
                     m.fromMe ? "rounded-br-md" : "rounded-bl-md"
                   }`}
@@ -836,6 +994,7 @@ export default function Chat() {
                 <button
                   type="button"
                   onClick={() => playAudio(m.id, m.audioUrl)}
+                  {...peerPressHandlers(m)}
                   className={`flex items-center gap-2 rounded-2xl px-4 py-3 text-[15px] ${
                     m.fromMe
                       ? "btn-grad rounded-br-md text-white"
@@ -861,6 +1020,7 @@ export default function Chat() {
                 </button>
               ) : (
                 <div
+                  {...peerPressHandlers(m)}
                   className={`rounded-2xl px-3 py-2 text-[15px] ${
                     m.fromMe
                       ? "btn-grad rounded-br-md text-white"
@@ -868,6 +1028,15 @@ export default function Chat() {
                   }`}
                 >
                   {m.text}
+                </div>
+              )}
+              {m.reaction && (
+                <div
+                  className={`mt-[-6px] inline-flex rounded-full bg-background px-1.5 py-0.5 text-[13px] shadow-sm ring-1 ring-line ${
+                    m.fromMe ? "float-right" : ""
+                  }`}
+                >
+                  {m.reaction}
                 </div>
               )}
               {m.translation && showTrans[m.id] && (
@@ -900,8 +1069,43 @@ export default function Chat() {
         ))}
       </div>
 
+      {menuMsg && (
+        <MessageActionMenu
+          message={menuMsg}
+          locale={locale === "en" ? "en" : "zh"}
+          onClose={() => setMenuMsg(null)}
+          onAction={onMessageAction}
+          onReact={onReact}
+        />
+      )}
+
+      {toast && (
+        <div className="pointer-events-none fixed bottom-28 left-1/2 z-[90] -translate-x-1/2 rounded-full bg-foreground/90 px-4 py-2 text-sm text-background shadow-lg">
+          {toast}
+        </div>
+      )}
+
       {/* Composer pinned to bottom (like profile「打招呼」) */}
       <div className="shrink-0 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+      {replyTo && (
+        <div className="flex items-start gap-2 border-b border-line bg-surface-2/70 px-3 py-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-semibold text-accent">
+              {chatT.replyTo}
+            </div>
+            <div className="truncate text-[13px] text-muted">
+              {messagePreview(replyTo)}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setReplyTo(null)}
+            className="shrink-0 text-xs text-muted"
+          >
+            {chatT.cancelReply}
+          </button>
+        </div>
+      )}
       {icebreakers && (
         <div className="animate-fadeUp border-b border-line bg-surface-2/60 p-3">
           <div className="mb-2 flex items-center justify-between text-xs">
