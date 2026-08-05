@@ -24,6 +24,11 @@ import {
   type LegalSection,
 } from "@/lib/legalCopy";
 import type { MarketingLocale } from "@/lib/marketingCopy";
+import {
+  flashCopy,
+  localizeVerifyError,
+  preferFlashCheckEnglish,
+} from "@/lib/flashCheck";
 
 const OTP_LEN = 6;
 
@@ -814,11 +819,19 @@ function VerifyModal() {
     closeModals,
     refreshTrustTier,
     locale,
+    region,
+    myProfile,
     userId,
     tier,
     pendingAction,
   } = useApp();
-  const en = locale === "en";
+  const en =
+    preferFlashCheckEnglish({
+      locale,
+      region,
+      nativeLang: myProfile.nativeLang,
+    }) && !/[\u4e00-\u9fa5]/.test(pendingAction || "");
+  const t = flashCopy(en);
   const [preview, setPreview] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [adminNote, setAdminNote] = useState<string | null>(null);
@@ -872,7 +885,7 @@ function VerifyModal() {
 
   const alreadyVerified = tier === "verified" || status === "approved";
   const pending = status === "pending";
-  const title = en ? "Flash Check" : "真人闪验";
+  const title = t.full;
   const hint = en
     ? "A quick on-camera check to confirm you’re a real person. No government ID. You’ll get a verified badge."
     : "对着镜头做几个小动作，确认是真人本人。不采集证件。通过后展示「✓ 已认证」徽章。";
@@ -906,11 +919,22 @@ function VerifyModal() {
         body: JSON.stringify({ selfieDataUrl: preview }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || (en ? "Submit failed" : "提交失败"));
+      if (!res.ok) {
+        throw new Error(
+          localizeVerifyError(data.error || "", en) ||
+            (en ? "Submit failed" : "提交失败")
+        );
+      }
       setStatus("pending");
       setPreview(null);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : en ? "Submit failed" : "提交失败");
+      setErr(
+        e instanceof Error
+          ? localizeVerifyError(e.message, en)
+          : en
+            ? "Submit failed"
+            : "提交失败"
+      );
     } finally {
       setBusy(false);
     }
@@ -932,7 +956,7 @@ function VerifyModal() {
             setUseFlash(false);
           }}
           onError={(message) => {
-            setErr(message);
+            setErr(localizeVerifyError(message, en));
             setUseFlash(false);
           }}
           onCancel={() => setUseFlash(false)}
@@ -959,8 +983,8 @@ function VerifyModal() {
             <div className="mt-4 space-y-3">
               <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
                 {en
-                  ? "A previous Flash Check is still pending review. You can run it again now for an instant result."
-                  : "上次闪验还在等待复核。你可以马上重新闪验，通常会当场出结果。"}
+                  ? "A previous check is awaiting TalkLov staff review (when the score isn’t high enough for instant pass). You can run Flash Check again now for an instant AWS result."
+                  : "上次闪验还在等待 TalkLov 人工复核（分数不够自动通过时才会进人工）。你可以马上重新闪验，通常会由系统当场出结果。"}
               </p>
               {err && (
                 <p className="text-sm text-rose-600 dark:text-rose-300">{err}</p>
@@ -975,7 +999,7 @@ function VerifyModal() {
                   }}
                   className="btn-grad w-full rounded-xl py-3 font-semibold"
                 >
-                  {en ? "Start Flash Check" : "开始验证"}
+                  {en ? "Start Flash Check" : t.start}
                 </button>
               ) : null}
             </div>
@@ -1019,7 +1043,7 @@ function VerifyModal() {
                   }}
                   className="btn-grad mt-4 w-full rounded-xl py-3 font-semibold"
                 >
-                  {en ? "Start Flash Check" : "开始验证"}
+                  {en ? "Start Flash Check" : t.start}
                 </button>
               ) : (
                 <>

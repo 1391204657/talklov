@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { flashCopy, livenessDisplayText } from "@/lib/flashCheck";
+import { flashCopy, livenessDisplayText, localizeVerifyError } from "@/lib/flashCheck";
 
 type Creds = {
   accessKeyId: string;
@@ -86,7 +86,11 @@ export default function FlashCheck({
           method: "POST",
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || t.failed);
+        if (!res.ok) {
+          throw new Error(
+            localizeVerifyError(data.error || "", en) || t.failed
+          );
+        }
         if (cancelled) return;
         setSessionId(data.sessionId);
         setRegion(data.region || "us-east-1");

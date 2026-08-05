@@ -38,6 +38,57 @@ export function flashCopy(en: boolean) {
   return en ? FLASH_CHECK.en : FLASH_CHECK.zh;
 }
 
+/** Map server verify errors to UI language. */
+export function localizeVerifyError(message: string, en: boolean): string {
+  const m = (message || "").trim();
+  if (!m) return en ? "Something went wrong" : "出了点问题";
+  const map: Record<string, { zh: string; en: string }> = {
+    "Already pending review": {
+      zh: "已有闪验在等待复核，可重新开始闪验以当场出结果",
+      en: "A Flash Check is already pending review. You can run it again for an instant result.",
+    },
+    "Already verified": {
+      zh: "你已经通过认证了",
+      en: "You’re already verified",
+    },
+    "Flash Check not configured": {
+      zh: "闪验服务暂未开通",
+      en: "Flash Check is not configured",
+    },
+    "Too many attempts": {
+      zh: "尝试次数过多，请稍后再试",
+      en: "Too many attempts — try again later",
+    },
+    "Account banned": {
+      zh: "账号已被限制",
+      en: "Account banned",
+    },
+    Unauthorized: {
+      zh: "请先登录",
+      en: "Please sign in",
+    },
+  };
+  const hit = map[m];
+  if (hit) return en ? hit.en : hit.zh;
+  // Already localized / unknown
+  if (!en && /^[A-Za-z]/.test(m) && m.length < 80) {
+    return `操作失败：${m}`;
+  }
+  return m;
+}
+
+/** Prefer Chinese Flash Check copy for CN / Chinese-native users even if UI locale was set to English. */
+export function preferFlashCheckEnglish(opts: {
+  locale: string;
+  region?: string;
+  nativeLang?: string;
+}): boolean {
+  if (opts.locale !== "en") return false;
+  if (opts.region === "CN") return false;
+  if ((opts.nativeLang || "").includes("中文")) return false;
+  return true;
+}
+
 /** AWS Amplify Face Liveness UI strings — keep in sync with locale. */
 export function livenessDisplayText(en: boolean): Record<string, string> {
   if (en) return {};
