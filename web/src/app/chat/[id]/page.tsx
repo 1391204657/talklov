@@ -912,7 +912,7 @@ export default function Chat() {
         </button>
         <button
           type="button"
-          onClick={() => router.push(`/profile/${profile.id}`)}
+          onClick={() => router.push(`/profile/${profile.id}?from=chat`)}
           className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
         >
           <div

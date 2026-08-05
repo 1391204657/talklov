@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/lib/store";
 import { isUuid, useProfile } from "@/lib/useProfiles";
 import { saveOpener } from "@/lib/openers";
-import { sendIcebreaker, countOpenersToday } from "@/lib/db";
+import { sendIcebreaker, countOpenersToday, resolveConversation } from "@/lib/db";
 import {
   DAILY_OPENER_LIMIT,
   incrementOpenerToday,
@@ -22,7 +22,11 @@ import {
   playMessageSound,
   showLocalMessageNotification,
 } from "@/lib/notify";
-import { upsertLocalConvo, markActiveChatPartner } from "@/lib/localInbox";
+import {
+  upsertLocalConvo,
+  markActiveChatPartner,
+  listActiveChatPartnerIds,
+} from "@/lib/localInbox";
 import { totalBadgeCount } from "@/lib/unreadBadge";
 import ProfilePhoto from "@/components/ProfilePhoto";
 import VoicePlayButton from "@/components/VoicePlayButton";
@@ -38,6 +42,17 @@ const intentLabel: Record<string, string> = {
 };
 
 type HelloState = "idle" | "composing" | "queued" | "accepted";
+
+function alreadyChattingWith(id: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const fromChat =
+      new URLSearchParams(window.location.search).get("from") === "chat";
+    return fromChat || listActiveChatPartnerIds().includes(id);
+  } catch {
+    return listActiveChatPartnerIds().includes(id);
+  }
+}
 
 export default function ProfileDetail() {
   const params = useParams<{ id: string }>();
@@ -55,7 +70,9 @@ export default function ProfileDetail() {
     applyUnreadBadge,
     isBanned,
   } = useApp();
-  const [hello, setHello] = useState<HelloState>("idle");
+  const [hello, setHello] = useState<HelloState>(() =>
+    alreadyChattingWith(params.id) ? "accepted" : "idle"
+  );
   const [opener, setOpener] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string[] | null>(null);
@@ -64,6 +81,27 @@ export default function ProfileDetail() {
   const sentOpenerRef = useRef("");
 
   const { profile, loading, isMe } = useProfile(params.id);
+
+  // Already chatting (from chat header / local inbox) → show continue, not 打招呼
+  useEffect(() => {
+    if (!params.id || isMe) return;
+    if (alreadyChattingWith(params.id)) {
+      setHello("accepted");
+      return;
+    }
+    if (!configured || !userId || !isUuid(params.id)) return;
+    let cancelled = false;
+    resolveConversation(params.id)
+      .then((conv) => {
+        if (cancelled || !conv) return;
+        if (conv.status === "accepted") setHello("accepted");
+        else if (conv.status === "pending") setHello("queued");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [params.id, isMe, configured, userId]);
 
   // VIP funnel: record real-user profile visits ("谁看了我")
   useEffect(() => {
@@ -213,7 +251,13 @@ export default function ProfileDetail() {
   };
 
   return (
-    <main className="flex flex-1 flex-col">
+    <main
+      className={`flex flex-1 flex-col ${
+        view === "composing"
+          ? "pb-[min(72vh,32rem)]"
+          : "pb-[calc(5.5rem+env(safe-area-inset-bottom))]"
+      }`}
+    >
       {/* Photo hero — figure-2 style: bottom rounded, no fade gradient */}
       <div className="relative px-3 pt-2">
         <div className="relative overflow-hidden rounded-b-[1.75rem] rounded-t-[1.1rem] shadow-[0_12px_40px_rgba(160,120,180,0.18)]">
@@ -421,7 +465,7 @@ export default function ProfileDetail() {
 
       {/* Opening-message composer with one-tap AI icebreakers */}
       {!isMe && view === "composing" && (
-        <div className="animate-sheetUp sticky bottom-0 border-t border-line bg-surface p-4">
+        <div className="animate-sheetUp fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-[480px] border-t border-line bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-8px_28px_rgba(0,0,0,0.08)]">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-sm font-medium">
               给 {profile.name} 写一句开场白
@@ -483,9 +527,9 @@ export default function ProfileDetail() {
         </div>
       )}
 
-      {/* Sticky action */}
+      {/* Fixed bottom action — sticky broke after document-scroll shell */}
       {view !== "composing" && (
-        <div className="sticky bottom-0 border-t border-line bg-surface/95 p-4 backdrop-blur">
+        <div className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-[480px] border-t border-line bg-surface/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur shadow-[0_-8px_28px_rgba(0,0,0,0.06)]">
           {isMe ? (
             <div className="space-y-2">
               <p className="text-center text-xs text-muted">
@@ -523,9 +567,7 @@ export default function ProfileDetail() {
                   onClick={onEnterChat}
                   className="w-full rounded-2xl bg-[#1c1c1f] py-4 text-lg font-semibold text-white shadow-[0_10px_28px_rgba(0,0,0,0.28)] active:bg-[#2a2a2e]"
                 >
-                  {tier === "verified" || isAiPersona(profile.id)
-                    ? "进入聊天 →"
-                    : "完成认证并开始聊天"}
+                  继续聊天 →
                 </button>
               )}
             </>
