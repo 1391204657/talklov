@@ -76,27 +76,47 @@ export function myProfileToPreview(
   };
 }
 
+/** Mainland CN often stalls on Supabase — don't block Discover forever. */
+const DISCOVER_FETCH_MS = 8000;
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = window.setTimeout(() => reject(new Error("timeout")), ms);
+    p.then(
+      (v) => {
+        window.clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        window.clearTimeout(t);
+        reject(e);
+      }
+    );
+  });
+}
+
 /**
  * Discover feed: real DB users + mock demos (so registering doesn't empty the list).
  * Own profile is excluded here — open 「预览我的主页」 instead.
+ * Mocks show immediately; DB refresh is best-effort (important when Supabase is slow in CN).
  */
 export function useProfiles(): { profiles: Profile[]; loading: boolean } {
   const { userId, myProfile, tier } = useApp();
   const [profiles, setProfiles] = useState<Profile[]>(() =>
     mergeDiscover([], userId, myProfile, tier === "verified", tier)
   );
-  const [loading, setLoading] = useState(isSupabaseConfigured);
+  // Never block the UI on network when we already have demo cards to show.
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setProfiles(
-        mergeDiscover([], userId, myProfile, tier === "verified", tier)
-      );
-      setLoading(false);
-      return;
-    }
+    setProfiles(
+      mergeDiscover([], userId, myProfile, tier === "verified", tier)
+    );
+    if (!isSupabaseConfigured) return;
+
     let cancelled = false;
-    fetchProfiles()
+    setLoading(true);
+    withTimeout(fetchProfiles(), DISCOVER_FETCH_MS)
       .then((rows) => {
         if (cancelled) return;
         setProfiles(
@@ -104,6 +124,7 @@ export function useProfiles(): { profiles: Profile[]; loading: boolean } {
         );
       })
       .catch(() => {
+        // Keep mocks already on screen (timeout / blocked / offline).
         if (!cancelled) {
           setProfiles(
             mergeDiscover([], userId, myProfile, tier === "verified", tier)

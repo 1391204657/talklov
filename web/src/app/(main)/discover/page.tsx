@@ -66,11 +66,14 @@ export default function Discover() {
         </div>
       </header>
 
-      {loading ? (
-        <div className="p-10 text-center text-sm text-muted">加载中…</div>
-      ) : list.length === 0 ? (
+      {loading && list.length > 0 ? (
+        <div className="px-4 pb-1 text-[11px] text-muted">同步中…</div>
+      ) : null}
+      {list.length === 0 ? (
         <div className="p-10 text-center text-sm text-muted">
-          还没有用户，快去邀请第一批种子用户吧～
+          {loading
+            ? "加载中…"
+            : "还没有用户，快去邀请第一批种子用户吧～"}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 px-3 pb-6 pt-1">
