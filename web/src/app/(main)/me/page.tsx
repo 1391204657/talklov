@@ -113,11 +113,14 @@ export default function Me() {
   } = useApp();
 
   const c = tApp(locale);
-  // If session/phone exists but local tier lagged as guest, treat as logged-in
+  // If session/email/phone exists but local tier lagged as guest, treat as logged-in
   const effectiveTier =
     tier === "verified"
       ? "verified"
-      : tier === "light" || !!userId || !!myProfile.phoneE164
+      : tier === "light" ||
+          !!userId ||
+          !!authEmail ||
+          !!myProfile.phoneE164
         ? "light"
         : "guest";
   const tierMeta =

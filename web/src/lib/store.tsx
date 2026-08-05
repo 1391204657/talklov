@@ -394,18 +394,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    sb.auth.getUser().then(async ({ data }) => {
-      const need = await applyUser(
-        data.user?.id ?? null,
-        data.user?.email ?? null
-      );
+    // Prefer getSession (local) then getUser — more reliable when Auth API is slow (e.g. CN).
+    void (async () => {
+      const { data: sess } = await sb.auth.getSession();
+      let uid = sess.session?.user?.id ?? null;
+      let email = sess.session?.user?.email ?? null;
+      if (!uid) {
+        const { data } = await sb.auth.getUser();
+        uid = data.user?.id ?? null;
+        email = data.user?.email ?? null;
+      } else {
+        // Ensure tier is never stuck at guest once a session exists
+        setTier((t) => (t === "guest" ? "light" : t));
+        setUserId(uid);
+        if (email) setAuthEmail(email);
+      }
+      const need = await applyUser(uid, email);
       if (
         typeof window !== "undefined" &&
         new URLSearchParams(window.location.search).get("auth") === "1"
       ) {
         finishOAuthLanding(need, "INITIAL_SESSION");
       }
-    });
+    })();
     const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
       // Ignore transient signed-out noise during token refresh; SIGNED_OUT is explicit
       if (event === "INITIAL_SESSION" && !session?.user) return;

@@ -15,12 +15,6 @@ export function isUuid(id: string): boolean {
   return UUID_RE.test(id);
 }
 
-/** Temporary cleanup: hide leftover Vince test accounts from Discover. */
-function isJunkTestProfile(p: Profile): boolean {
-  const n = (p.name || "").trim().toLowerCase();
-  return n === "vince" || n === "vince test" || /^vince(\s|$)/i.test(n);
-}
-
 /** Always keep mock demos in the feed; prepend my card when I have a profile photo. */
 function mergeDiscover(
   db: Profile[],
@@ -29,9 +23,8 @@ function mergeDiscover(
   verified = false,
   tier: "guest" | "light" | "verified" = "guest"
 ): Profile[] {
-  const others = (myId ? db.filter((p) => p.id !== myId) : db).filter(
-    (p) => !isJunkTestProfile(p)
-  );
+  // Real Auth users (including kept accounts) stay visible; only demos are client mocks.
+  const others = myId ? db.filter((p) => p.id !== myId) : db;
   const mockIds = new Set(mockProfiles.map((m) => m.id));
   const realExtra = others.filter((p) => !mockIds.has(p.id));
   const feed = [...realExtra, ...mockProfiles];

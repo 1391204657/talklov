@@ -164,10 +164,22 @@ export async function fetchProfiles(): Promise<Profile[]> {
   return (rows as unknown as DbProfile[]).map(toProfile);
 }
 
+const PROFILE_SELECT_SAFE =
+  "id,handle,name,age,gender,country,city,native_lang,learning_lang,level,intents,interests,bio,avatar_url,photos,occupation,education,zodiac,chinese_variant,photo_privacy,tier,verified,online,plan,plan_expires_at,is_founder,founder_slot,founder_last_active_at,boost_until,created_at,updated_at";
+
 export async function fetchDbProfile(id: string): Promise<DbProfile | null> {
-  const { data, error } = await must()
+  const sb = must();
+  // Prefer privacy RPC when photo columns are revoked on direct select.
+  const { data: rpcData, error: rpcErr } = await sb.rpc("get_profile_public", {
+    p_id: id,
+  });
+  if (!rpcErr && rpcData) {
+    const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    return (row as DbProfile) ?? null;
+  }
+  const { data, error } = await sb
     .from("profiles")
-    .select("*")
+    .select(PROFILE_SELECT_SAFE)
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
