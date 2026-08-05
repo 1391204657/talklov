@@ -129,13 +129,39 @@ export async function getCurrentUserId(): Promise<string | null> {
 }
 
 // ---- Profiles ----
+/**
+ * Discover list: prefer same-origin API (Vercel → Supabase) so mainland CN
+ * does not depend on direct browser access to *.supabase.co.
+ */
 export async function fetchProfiles(): Promise<Profile[]> {
-  const { data, error } = await must()
+  if (typeof window !== "undefined") {
+    try {
+      const res = await fetch("/api/discover/profiles", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { profiles?: Profile[] };
+        if (Array.isArray(json.profiles)) return json.profiles;
+      }
+    } catch (e) {
+      console.warn("[fetchProfiles] API", e);
+    }
+  }
+
+  // Fallback: direct Supabase (local / if API unavailable)
+  const { data, error } = await must().rpc("list_profiles_public");
+  if (!error && data) {
+    return (data as unknown as DbProfile[]).map(toProfile);
+  }
+  const { data: rows, error: e2 } = await must()
     .from("profiles")
-    .select("*")
+    .select(
+      "id,handle,name,age,gender,country,city,native_lang,learning_lang,level,intents,interests,bio,avatar_url,photos,occupation,education,zodiac,chinese_variant,photo_privacy,tier,verified,online,plan,plan_expires_at,is_founder,founder_slot,founder_last_active_at,boost_until,created_at,updated_at"
+    )
     .order("online", { ascending: false });
-  if (error) throw error;
-  return (data as DbProfile[]).map(toProfile);
+  if (e2) throw e2;
+  return (rows as unknown as DbProfile[]).map(toProfile);
 }
 
 export async function fetchDbProfile(id: string): Promise<DbProfile | null> {
