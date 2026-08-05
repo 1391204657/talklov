@@ -70,6 +70,7 @@ export default function Chat() {
     tier,
     myProfile,
     openVerify,
+    openRegister,
     configured,
     userId,
     notifyPrefs,
@@ -289,19 +290,19 @@ export default function Chat() {
     );
   }
 
-  if (tier !== "verified" && !isAiPersona(params.id)) {
+  // Soft launch: text chat after register. Flash Check is for verified badge + calls.
+  if (tier === "guest" && !isAiPersona(params.id)) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-        <svg viewBox="0 0 48 48" className="h-12 w-12 text-muted" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M24 4 6 12v12c0 11 18 18 18 18s18-7 18-18V12L24 4Z" /></svg>
-        <h2 className="text-xl font-bold">聊天前需要真人认证</h2>
+        <h2 className="text-xl font-bold">登录后即可聊天</h2>
         <p className="text-sm text-muted">
-          为防止骗子与虚假账号，进入会话前请先完成真人闪验（不采集证件实名）。
+          注册或登录后就能和 {profile.name} 发消息。真人闪验可选，用于获得认证徽章与音视频通话。
         </p>
         <button
-          onClick={() => openVerify(`和 ${profile.name} 聊天`)}
+          onClick={() => openRegister(`和 ${profile.name} 聊天`)}
           className="btn-grad rounded-2xl px-6 py-3 font-semibold"
         >
-          去认证
+          注册 / 登录
         </button>
         <button onClick={() => router.back()} className="text-sm text-muted">
           返回
@@ -783,8 +784,13 @@ export default function Chat() {
       return;
     }
     if (!userId || !configured) {
-      alert("请先登录并完成认证后再通话");
-      openVerify("login");
+      alert("请先登录后再通话");
+      openRegister("login");
+      return;
+    }
+    if (tier !== "verified") {
+      alert("音视频通话需要先完成真人闪验");
+      openVerify("通话");
       return;
     }
     if (!conversationId) {

@@ -145,7 +145,7 @@ function Sheet({
         aria-hidden
       />
       <div
-        className={`animate-modalIn relative flex max-h-[min(92vh,720px)] w-full max-w-[420px] flex-col overflow-hidden rounded-3xl border border-line shadow-[0_24px_80px_rgba(0,0,0,0.28)] ${
+        className={`animate-modalIn relative flex max-h-[min(96vh,820px)] w-full max-w-[420px] flex-col overflow-hidden rounded-3xl border border-line shadow-[0_24px_80px_rgba(0,0,0,0.28)] ${
           solid ? "bg-white" : "bg-surface"
         }`}
         style={solid ? { backgroundColor: "#ffffff" } : undefined}
@@ -905,24 +905,8 @@ function VerifyModal() {
 
   return (
     <Sheet onClose={closeModals}>
-      <h3 className="text-xl font-bold">
-        {title} ✨
-      </h3>
-      <p className="mt-1 text-sm text-muted">{hint}</p>
-
-      {loadingStatus ? (
-        <p className="mt-4 text-sm text-muted">{en ? "Checking…" : "查询状态…"}</p>
-      ) : alreadyVerified ? (
-        <p className="mt-4 rounded-xl bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-200">
-          {en ? "Flash Check complete — you’re verified." : "闪验已通过，你已获得认证徽章。"}
-        </p>
-      ) : pending ? (
-        <p className="mt-4 rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
-          {en
-            ? "Flash Check submitted — waiting for a quick review."
-            : "闪验已提交，等待人工复核。通过后即可解锁完整功能。"}
-        </p>
-      ) : useFlash && FlashUI ? (
+      {/* When Flash UI is active, hide title/hint so Start fits above the fold */}
+      {useFlash && FlashUI ? (
         <FlashUI
           en={en}
           onApproved={async () => {
@@ -942,112 +926,131 @@ function VerifyModal() {
         />
       ) : (
         <>
-          <ul className="mt-4 space-y-2 text-sm">
-            <li className="flex items-center gap-2">
-              <span>✨</span>
-              {en
-                ? "Flash Check: short motion selfie (not public)"
-                : "闪验：几秒动态自拍（不公开展示）"}
-            </li>
-            <li className="flex items-center gap-2">
-              <span>✅</span>
-              {en ? "Verified badge after you pass" : "通过后获得认证徽章"}
-            </li>
-            <li className="flex items-center gap-2 text-muted">
-              <span>🔒</span>
-              {en ? "No government ID required" : "不采集证件实名"}
-            </li>
-          </ul>
+          <h3 className="text-xl font-bold">
+            {title} ✨
+          </h3>
+          <p className="mt-1 text-sm text-muted">{hint}</p>
 
-          {status === "rejected" && (
-            <p className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-200">
-              {en ? "Previous Flash Check didn’t pass." : "上次闪验未通过。"}
-              {adminNote ? ` ${adminNote}` : ""}
-              {en ? " You can try again." : " 可重新尝试。"}
+          {loadingStatus ? (
+            <p className="mt-4 text-sm text-muted">{en ? "Checking…" : "查询状态…"}</p>
+          ) : alreadyVerified ? (
+            <p className="mt-4 rounded-xl bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-200">
+              {en ? "Flash Check complete — you’re verified." : "闪验已通过，你已获得认证徽章。"}
             </p>
-          )}
-
-          {err && (
-            <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{err}</p>
-          )}
-
-          {flashEnabled ? (
-            <button
-              type="button"
-              onClick={() => {
-                setErr(null);
-                setUseFlash(true);
-              }}
-              className="btn-grad mt-4 w-full rounded-xl py-3 font-semibold"
-            >
-              {en ? "Start Flash Check" : "开始闪验"}
-            </button>
+          ) : pending ? (
+            <p className="mt-4 rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
+              {en
+                ? "Flash Check submitted — waiting for a quick review."
+                : "闪验已提交，等待人工复核。通过后即可解锁完整功能。"}
+            </p>
           ) : (
             <>
-              <p className="mt-3 text-xs text-muted">
-                {en
-                  ? "Flash Check service offline — use secure selfie upload."
-                  : "闪验服务未开通时，可走安全自拍通道。"}
-              </p>
-              <label className="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-black/15 bg-black/[0.03] px-4 py-6 text-sm dark:border-white/15 dark:bg-white/[0.04]">
-                <span className="font-medium">
-                  {preview
-                    ? en
-                      ? "Tap to retake"
-                      : "点击重拍"
-                    : en
-                      ? "Take / upload selfie"
-                      : "拍摄或上传自拍"}
-                </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="user"
-                  className="hidden"
-                  onChange={(e) => void onPick(e.target.files?.[0] ?? null)}
-                />
-              </label>
-              {preview && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={preview}
-                  alt="selfie preview"
-                  className="mt-3 max-h-56 w-full rounded-xl object-contain bg-black/5"
-                />
+              <ul className="mt-4 space-y-2 text-sm">
+                <li className="flex items-center gap-2">
+                  <span>✨</span>
+                  {en
+                    ? "Flash Check: short motion selfie (not public)"
+                    : "闪验：几秒动态自拍（不公开展示）"}
+                </li>
+                <li className="flex items-center gap-2">
+                  <span>✅</span>
+                  {en ? "Verified badge after you pass" : "通过后获得认证徽章"}
+                </li>
+                <li className="flex items-center gap-2 text-muted">
+                  <span>🔒</span>
+                  {en ? "No government ID required" : "不采集证件实名"}
+                </li>
+              </ul>
+
+              {status === "rejected" && (
+                <p className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-200">
+                  {en ? "Previous Flash Check didn’t pass." : "上次闪验未通过。"}
+                  {adminNote ? ` ${adminNote}` : ""}
+                  {en ? " You can try again." : " 可重新尝试。"}
+                </p>
               )}
-              <button
-                type="button"
-                disabled={!preview || busy}
-                onClick={() => void onSubmit()}
-                className="btn-grad mt-4 w-full rounded-xl py-3 font-semibold disabled:opacity-40"
-              >
-                {busy
-                  ? en
-                    ? "Submitting…"
-                    : "提交中…"
-                  : en
-                    ? "Submit for review"
-                    : "提交审核"}
-              </button>
+
+              {err && (
+                <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{err}</p>
+              )}
+
+              {flashEnabled ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErr(null);
+                    setUseFlash(true);
+                  }}
+                  className="btn-grad mt-4 w-full rounded-xl py-3 font-semibold"
+                >
+                  {en ? "Start Flash Check" : "开始闪验"}
+                </button>
+              ) : (
+                <>
+                  <p className="mt-3 text-xs text-muted">
+                    {en
+                      ? "Flash Check service offline — use secure selfie upload."
+                      : "闪验服务未开通时，可走安全自拍通道。"}
+                  </p>
+                  <label className="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-black/15 bg-black/[0.03] px-4 py-6 text-sm dark:border-white/15 dark:bg-white/[0.04]">
+                    <span className="font-medium">
+                      {preview
+                        ? en
+                          ? "Tap to retake"
+                          : "点击重拍"
+                        : en
+                          ? "Take / upload selfie"
+                          : "拍摄或上传自拍"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="user"
+                      className="hidden"
+                      onChange={(e) => void onPick(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  {preview && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={preview}
+                      alt="selfie preview"
+                      className="mt-3 max-h-56 w-full rounded-xl object-contain bg-black/5"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    disabled={!preview || busy}
+                    onClick={() => void onSubmit()}
+                    className="btn-grad mt-4 w-full rounded-xl py-3 font-semibold disabled:opacity-40"
+                  >
+                    {busy
+                      ? en
+                        ? "Submitting…"
+                        : "提交中…"
+                      : en
+                        ? "Submit for review"
+                        : "提交审核"}
+                  </button>
+                </>
+              )}
             </>
           )}
-        </>
-      )}
 
-      {!useFlash && (
-        <button
-          type="button"
-          onClick={closeModals}
-          className="mt-2 w-full rounded-xl py-2 text-sm text-muted"
-        >
-          {alreadyVerified || pending
-            ? en
-              ? "Close"
-              : "关闭"
-            : en
-              ? "Later"
-              : "稍后再说"}
-        </button>
+          <button
+            type="button"
+            onClick={closeModals}
+            className="mt-2 w-full rounded-xl py-2 text-sm text-muted"
+          >
+            {alreadyVerified || pending
+              ? en
+                ? "Close"
+                : "关闭"
+              : en
+                ? "Later"
+                : "稍后再说"}
+          </button>
+        </>
       )}
     </Sheet>
   );

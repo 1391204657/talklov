@@ -3,10 +3,9 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/lib/store";
-import { useProfile } from "@/lib/useProfiles";
+import { isUuid, useProfile } from "@/lib/useProfiles";
 import { saveOpener } from "@/lib/openers";
 import { sendIcebreaker, countOpenersToday } from "@/lib/db";
-import { isUuid } from "@/lib/useProfiles";
 import {
   DAILY_OPENER_LIMIT,
   incrementOpenerToday,
@@ -26,7 +25,10 @@ import {
 import { upsertLocalConvo, totalUnread, markActiveChatPartner } from "@/lib/localInbox";
 import ProfilePhoto from "@/components/ProfilePhoto";
 import VoicePlayButton from "@/components/VoicePlayButton";
+import FavoriteButton from "@/components/FavoriteButton";
+import ReportButton from "@/components/ReportButton";
 import { formatChineseVariants, shortLevel } from "@/lib/profile";
+import { recordProfileView } from "@/lib/profileViews";
 
 const intentLabel: Record<string, string> = {
   language: "语伴",
@@ -50,6 +52,7 @@ export default function ProfileDetail() {
     userId,
     notifyPrefs,
     applyUnreadBadge,
+    isBanned,
   } = useApp();
   const [hello, setHello] = useState<HelloState>("idle");
   const [opener, setOpener] = useState("");
@@ -60,6 +63,13 @@ export default function ProfileDetail() {
   const sentOpenerRef = useRef("");
 
   const { profile, loading, isMe } = useProfile(params.id);
+
+  // VIP funnel: record real-user profile visits ("谁看了我")
+  useEffect(() => {
+    if (!userId || !profile || isMe) return;
+    if (!isUuid(profile.id)) return;
+    void recordProfileView(userId, profile.id);
+  }, [userId, profile, isMe]);
 
   // Protected bidirectional model: the FIRST contact is always a single
   // opener that the recipient must accept. Rate limit applies to free men.
@@ -142,6 +152,7 @@ export default function ProfileDetail() {
       : hello;
 
   const onSayHello = () => {
+    if (isBanned) return;
     if (tier === "guest") {
       openRegister(`给 ${profile.name} 打招呼`, profile.id);
       return;
@@ -192,11 +203,11 @@ export default function ProfileDetail() {
   };
 
   const onEnterChat = () => {
-    // Demo AI partners skip liveness gate so testers can chat immediately
-    if (tier !== "verified" && !isAiPersona(profile.id)) {
-      openVerify(`和 ${profile.name} 聊天`);
+    if (tier === "guest") {
+      openRegister(`和 ${profile.name} 聊天`);
       return;
     }
+    // Soft launch: registered users can text-chat; Flash Check is optional badge + calls
     router.push(`/chat/${profile.id}`);
   };
 
@@ -221,6 +232,13 @@ export default function ProfileDetail() {
               <path d="M15 5 8 12l7 7" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
+          {!isMe && (
+            <FavoriteButton
+              targetId={profile.id}
+              size="md"
+              className="absolute right-3 top-3 z-20"
+            />
+          )}
           <VoicePlayButton
             profile={profile}
             className="absolute bottom-9 right-3.5"
@@ -304,7 +322,12 @@ export default function ProfileDetail() {
         </div>
 
         <div>
-          <div className="mb-1 text-sm text-muted">意图</div>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span className="text-sm text-muted">意图</span>
+            {!isMe && (
+              <ReportButton targetId={profile.id} targetName={profile.name} />
+            )}
+          </div>
           <div className="flex flex-wrap gap-2">
             {profile.intents.map((i) => (
               <span
