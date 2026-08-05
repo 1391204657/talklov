@@ -1,38 +1,51 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useApp } from "@/lib/store";
-import { fetchPendingIcebreakers, subscribePendingIcebreakers } from "@/lib/db";
-import { totalBadgeCount } from "@/lib/unreadBadge";
+import {
+  setBackendPendingCount,
+  totalBadgeCount,
+} from "@/lib/unreadBadge";
 
-/**
- * Keeps TabBar / home-screen badge in sync with pending hellos even when
- * the user is not on the Messages page.
- */
+/** Quiet badge sync — one inbox poll on login, then every 90s. No realtime storm. */
 export default function InboxBadgeSync() {
   const { userId, configured, applyUnreadBadge } = useApp();
+  const badgeRef = useRef(applyUnreadBadge);
+  badgeRef.current = applyUnreadBadge;
 
   useEffect(() => {
     if (!configured || !userId) return;
     let cancelled = false;
+
     const refresh = () => {
-      fetchPendingIcebreakers()
-        .then(() => {
-          if (!cancelled) applyUnreadBadge(totalBadgeCount());
+      void fetch("/api/inbox", {
+        cache: "no-store",
+        credentials: "same-origin",
+      })
+        .then(async (res) => {
+          if (!res.ok || cancelled) return;
+          const json = (await res.json()) as {
+            pendingCount?: number;
+            pending?: unknown[];
+          };
+          setBackendPendingCount(
+            json.pendingCount ??
+              (Array.isArray(json.pending) ? json.pending.length : 0)
+          );
+          badgeRef.current(totalBadgeCount());
         })
         .catch(() => {
-          if (!cancelled) applyUnreadBadge(totalBadgeCount());
+          /* ignore */
         });
     };
+
     refresh();
-    const unsub = subscribePendingIcebreakers(userId, refresh);
-    const t = window.setInterval(refresh, 60_000);
+    const t = window.setInterval(refresh, 90_000);
     return () => {
       cancelled = true;
-      unsub();
       window.clearInterval(t);
     };
-  }, [configured, userId, applyUnreadBadge]);
+  }, [configured, userId]);
 
   return null;
 }
