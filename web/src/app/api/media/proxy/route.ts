@@ -28,9 +28,18 @@ function isAllowedUrl(raw: string): URL | null {
 
 /**
  * Proxy remote media (esp. Supabase Storage) through talklov.com.
- * Mainland CN often cannot load *.supabase.co images directly; US can.
+ * Same path for every region; helps when direct storage is slow/flaky.
  */
 export async function GET(req: NextRequest) {
+  return proxy(req);
+}
+
+export async function HEAD(req: NextRequest) {
+  const res = await proxy(req);
+  return new NextResponse(null, { status: res.status, headers: res.headers });
+}
+
+async function proxy(req: NextRequest) {
   const raw = req.nextUrl.searchParams.get("u") || "";
   const target = isAllowedUrl(raw);
   if (!target) {
