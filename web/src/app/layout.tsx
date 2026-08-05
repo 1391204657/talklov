@@ -1,9 +1,13 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import { AppProvider } from "@/lib/store";
 import Modals from "@/components/Modals";
 import InstallGuide from "@/components/InstallGuide";
+import ReferralCapture from "@/components/ReferralCapture";
+import BanBanner from "@/components/BanBanner";
 import { CallProvider } from "@/components/calls/CallProvider";
+import InboxBadgeSync from "@/components/InboxBadgeSync";
 
 export const metadata: Metadata = {
   title: "TalkLov · 你的中美语言搭子与交友平台",
@@ -41,7 +45,12 @@ export default function RootLayout({
       <body className="min-h-full bg-background text-foreground antialiased">
         <AppProvider>
           <CallProvider>
+            <BanBanner />
+            <InboxBadgeSync />
             {children}
+            <Suspense fallback={null}>
+              <ReferralCapture />
+            </Suspense>
             <Modals />
             <InstallGuide />
           </CallProvider>

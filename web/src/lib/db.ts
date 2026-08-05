@@ -397,6 +397,26 @@ export interface PendingIcebreaker {
 
 /** Openers waiting for the current user to accept. */
 export async function fetchPendingIcebreakers(): Promise<PendingIcebreaker[]> {
+  if (typeof window !== "undefined") {
+    try {
+      const res = await fetch("/api/inbox", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (res.ok) {
+        const json = (await res.json()) as {
+          pending?: PendingIcebreaker[];
+          pendingCount?: number;
+        };
+        const { setBackendPendingCount } = await import("./unreadBadge");
+        setBackendPendingCount(json.pendingCount ?? json.pending?.length ?? 0);
+        if (Array.isArray(json.pending)) return json.pending;
+      }
+    } catch (e) {
+      console.warn("[fetchPendingIcebreakers] API", e);
+    }
+  }
+
   const sb = must();
   const me = await getCurrentUserId();
   if (!me) return [];
@@ -495,6 +515,30 @@ export interface ConversationSummary {
 
 /** Accepted conversations for the current user, most recent first. */
 export async function fetchConversations(): Promise<ConversationSummary[]> {
+  if (typeof window !== "undefined") {
+    try {
+      const res = await fetch("/api/inbox", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (res.ok) {
+        const json = (await res.json()) as {
+          conversations?: ConversationSummary[];
+          pendingCount?: number;
+          pending?: unknown[];
+        };
+        const { setBackendPendingCount } = await import("./unreadBadge");
+        setBackendPendingCount(
+          json.pendingCount ??
+            (Array.isArray(json.pending) ? json.pending.length : 0)
+        );
+        if (Array.isArray(json.conversations)) return json.conversations;
+      }
+    } catch (e) {
+      console.warn("[fetchConversations] API", e);
+    }
+  }
+
   const sb = must();
   const me = await getCurrentUserId();
   if (!me) return [];

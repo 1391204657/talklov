@@ -37,10 +37,10 @@ import {
 } from "@/lib/notify";
 import {
   markLocalConvoRead,
-  totalUnread,
   upsertLocalConvo,
   markActiveChatPartner,
 } from "@/lib/localInbox";
+import { totalBadgeCount } from "@/lib/unreadBadge";
 
 const SCAM_HARD_BLOCK = [
   "验证码发给我",
@@ -160,7 +160,7 @@ export default function Chat() {
     markActiveChatPartner(profile.id);
     if (!isAiPersona(profile.id)) return;
     markLocalConvoRead(profile.id);
-    applyUnreadBadge(totalUnread());
+    applyUnreadBadge(totalBadgeCount());
   }, [profile, applyUnreadBadge]);
 
   // Top safety banner: once dismissed for this chat, stay hidden on re-entry.
@@ -226,7 +226,7 @@ export default function Chat() {
                   preview: reply,
                   unread: 0,
                 });
-                applyUnreadBadge(totalUnread());
+                applyUnreadBadge(totalBadgeCount());
                 playMessageSound(notifyPrefs.sound);
                 showLocalMessageNotification(
                   profile.name,

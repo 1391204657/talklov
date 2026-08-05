@@ -23,9 +23,9 @@ import {
   setChatPinned,
   sortByPinThenTime,
   subscribeInbox,
-  totalUnread,
   type LocalConvo,
 } from "@/lib/localInbox";
+import { totalBadgeCount } from "@/lib/unreadBadge";
 
 interface QueueItem {
   id: string;
@@ -71,7 +71,7 @@ export default function Messages() {
     const refresh = () => {
       setLocalConvos(listLocalConvos());
       setPinTick((n) => n + 1);
-      applyUnreadBadge(totalUnread());
+      applyUnreadBadge(totalBadgeCount());
     };
     refresh();
     return subscribeInbox(refresh);
@@ -82,11 +82,12 @@ export default function Messages() {
     if (!useBackend || !userId) return;
     const load = () => {
       fetchPendingIcebreakers()
-        .then((rows: PendingIcebreaker[]) =>
+        .then((rows: PendingIcebreaker[]) => {
           setQueue(
             rows.map((r) => ({ id: r.id, text: r.text, sender: r.sender }))
-          )
-        )
+          );
+          applyUnreadBadge(totalBadgeCount());
+        })
         .catch(() => {});
       fetchConversations()
         .then(setConvos)
@@ -95,7 +96,7 @@ export default function Messages() {
     load();
     const unsub = subscribePendingIcebreakers(userId, load);
     return () => unsub();
-  }, [useBackend, userId]);
+  }, [useBackend, userId, applyUnreadBadge]);
 
   const onAccept = async (item: QueueItem) => {
     if (useBackend) {
@@ -107,7 +108,14 @@ export default function Messages() {
         return;
       }
     }
-    setQueue((q) => q.filter((x) => x.id !== item.id));
+    setQueue((q) => {
+      const next = q.filter((x) => x.id !== item.id);
+      void import("@/lib/unreadBadge").then(({ setBackendPendingCount, totalBadgeCount }) => {
+        setBackendPendingCount(next.length);
+        applyUnreadBadge(totalBadgeCount());
+      });
+      return next;
+    });
     setBusy(null);
     router.push(`/chat/${item.sender.id}`);
   };
@@ -116,7 +124,14 @@ export default function Messages() {
     if (useBackend) {
       declineIcebreaker(item.id).catch(() => {});
     }
-    setQueue((q) => q.filter((x) => x.id !== item.id));
+    setQueue((q) => {
+      const next = q.filter((x) => x.id !== item.id);
+      void import("@/lib/unreadBadge").then(({ setBackendPendingCount, totalBadgeCount }) => {
+        setBackendPendingCount(next.length);
+        applyUnreadBadge(totalBadgeCount());
+      });
+      return next;
+    });
   };
 
   const pickShareTarget = (id: string) => {
@@ -237,9 +252,17 @@ export default function Messages() {
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className="h-11 w-11 shrink-0 rounded-full bg-cover bg-center"
-                      style={{ backgroundImage: `url(${item.sender.photo})` }}
-                    />
+                      className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-2 bg-cover bg-center text-sm font-semibold text-muted"
+                      style={
+                        item.sender.photo
+                          ? { backgroundImage: `url(${item.sender.photo})` }
+                          : undefined
+                      }
+                    >
+                      {!item.sender.photo
+                        ? (item.sender.name || "?").slice(0, 1)
+                        : null}
+                    </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1 font-medium">
                         {item.sender.name}
@@ -321,9 +344,17 @@ export default function Messages() {
                     onLongPress={() => openPinMenu(c.otherId, c.other.name)}
                   >
                     <div
-                      className="h-12 w-12 shrink-0 rounded-full bg-cover bg-center bg-surface-2"
-                      style={{ backgroundImage: `url(${c.other.photo})` }}
-                    />
+                      className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-2 bg-cover bg-center text-sm font-semibold text-muted"
+                      style={
+                        c.other.photo
+                          ? { backgroundImage: `url(${c.other.photo})` }
+                          : undefined
+                      }
+                    >
+                      {!c.other.photo
+                        ? (c.other.name || "?").slice(0, 1)
+                        : null}
+                    </div>
                     <div className="min-w-0 flex-1">
                       <span className="flex items-center gap-1 font-medium">
                         {pinned && <PinIcon />}

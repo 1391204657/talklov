@@ -22,7 +22,8 @@ import {
   playMessageSound,
   showLocalMessageNotification,
 } from "@/lib/notify";
-import { upsertLocalConvo, totalUnread, markActiveChatPartner } from "@/lib/localInbox";
+import { upsertLocalConvo, markActiveChatPartner } from "@/lib/localInbox";
+import { totalBadgeCount } from "@/lib/unreadBadge";
 import ProfilePhoto from "@/components/ProfilePhoto";
 import VoicePlayButton from "@/components/VoicePlayButton";
 import FavoriteButton from "@/components/FavoriteButton";
@@ -114,7 +115,7 @@ export default function ProfileDetail() {
         preview: body,
         unread: 1,
       });
-      applyUnreadBadge(totalUnread());
+      applyUnreadBadge(totalBadgeCount());
       playMessageSound(notifyPrefs.sound);
       showLocalMessageNotification(
         `${profile.name} 已接受你的打招呼`,

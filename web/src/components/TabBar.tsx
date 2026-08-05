@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useApp } from "@/lib/store";
 import { tApp } from "@/lib/appCopy";
-import { subscribeInbox, totalUnread } from "@/lib/localInbox";
+import { subscribeInbox } from "@/lib/localInbox";
+import { totalBadgeCount } from "@/lib/unreadBadge";
 
 const tabIcons = {
   discover: (
@@ -48,7 +49,7 @@ export default function TabBar() {
 
   useEffect(() => {
     const refresh = () => {
-      const n = totalUnread();
+      const n = totalBadgeCount();
       setUnread(n);
       applyUnreadBadge(n);
     };
