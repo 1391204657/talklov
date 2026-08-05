@@ -132,8 +132,8 @@ export async function getCurrentUserId(): Promise<string | null> {
 
 // ---- Profiles ----
 /**
- * Discover list: prefer same-origin API (Vercel → Supabase) so mainland CN
- * does not depend on direct browser access to *.supabase.co.
+ * Discover list: prefer same-origin API (Vercel → Supabase) for all regions —
+ * one code path; avoids flaky direct browser→supabase on some mobile networks.
  */
 export async function fetchProfiles(): Promise<Profile[]> {
   if (typeof window !== "undefined") {

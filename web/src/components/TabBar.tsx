@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useApp } from "@/lib/store";
 import { tApp } from "@/lib/appCopy";
@@ -40,6 +39,7 @@ const tabIcons = {
   ),
 };
 
+/** Plain <a> tabs — identical US/CN; reliable in WeChat/QQ WebViews. */
 export default function TabBar() {
   const path = usePathname();
   const { locale, tier, openRegister, applyUnreadBadge } = useApp();
@@ -73,13 +73,12 @@ export default function TabBar() {
       openRegister(locale === "en" ? "post a moment" : "发布动态");
       return;
     }
-    // Hard navigate — more reliable than router.push on CN WebKit
     window.location.assign("/moments/compose");
   };
 
   return (
     <nav
-      className="relative z-[70] border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl"
+      className="relative z-[70] border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
       aria-label="Primary"
       style={{ touchAction: "manipulation" }}
     >
@@ -88,10 +87,9 @@ export default function TabBar() {
           const active = path.startsWith(t.href);
           const badge = "badge" in t ? t.badge : 0;
           return (
-            <Link
+            <a
               key={t.href}
               href={t.href}
-              prefetch={false}
               className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] transition ${
                 active ? "text-accent" : "text-muted"
               }`}
@@ -106,7 +104,7 @@ export default function TabBar() {
                 )}
               </span>
               {t.label}
-            </Link>
+            </a>
           );
         })}
 
@@ -125,10 +123,9 @@ export default function TabBar() {
         {tabs.slice(2).map((t) => {
           const active = path.startsWith(t.href);
           return (
-            <Link
+            <a
               key={t.href}
               href={t.href}
-              prefetch={false}
               className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] transition ${
                 active ? "text-accent" : "text-muted"
               }`}
@@ -138,7 +135,7 @@ export default function TabBar() {
                 {t.icon}
               </span>
               {t.label}
-            </Link>
+            </a>
           );
         })}
       </div>

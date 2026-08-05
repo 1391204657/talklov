@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useApp } from "@/lib/store";
 import { tApp } from "@/lib/appCopy";
 
@@ -48,6 +47,7 @@ export default function MeAvatarButton({ className = "" }: { className?: string 
         onClick={() => openRegister()}
         className="shrink-0 rounded-full"
         aria-label={c.registerLogin}
+        style={{ touchAction: "manipulation" }}
       >
         {face}
       </button>
@@ -55,13 +55,14 @@ export default function MeAvatarButton({ className = "" }: { className?: string 
   }
 
   return (
-    <Link
+    <a
       href="/me"
       className="shrink-0 rounded-full"
       aria-label={c.tabMe}
       title={myProfile.name || c.tabMe}
+      style={{ touchAction: "manipulation" }}
     >
       {face}
-    </Link>
+    </a>
   );
 }

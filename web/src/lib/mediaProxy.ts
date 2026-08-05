@@ -1,4 +1,4 @@
-/** Rewrite remote media URLs so CN clients load via talklov.com (not *.supabase.co). */
+/** Rewrite remote media URLs through talklov.com — same path for every region. */
 
 export function needsMediaProxy(url: string | null | undefined): boolean {
   if (!url) return false;

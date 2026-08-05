@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Profile } from "@/lib/types";
 import ProfilePhoto from "./ProfilePhoto";
 import VoicePlayButton from "./VoicePlayButton";
@@ -36,16 +35,15 @@ const intentIcon: Record<string, React.ReactNode> = {
 };
 
 /**
- * Native <a>/<Link> — required for CN iPhone Safari when JS hydration is slow
- * or touch handlers fight with pan-y scroll. Do not use div+onClick/onTouchEnd.
+ * Plain <a> (not next/link) — same for US and CN.
+ * WeChat/QQ in-app browsers often break client-side SPA routing; full page loads work everywhere.
  */
 export default function ProfileCard({ profile }: { profile: Profile }) {
   const href = `/profile/${profile.id}`;
 
   return (
-    <Link
+    <a
       href={href}
-      prefetch={false}
       className="group relative block w-full animate-fadeUp cursor-pointer text-left"
       style={{
         touchAction: "manipulation",
@@ -62,12 +60,12 @@ export default function ProfileCard({ profile }: { profile: Profile }) {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 rounded-b-[1.35rem] bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
 
         {profile.online && (
-          <span className="pointer-events-none absolute left-2.5 top-5 flex items-center gap-1 rounded-full bg-black/35 px-2 py-1 text-[10px] text-white backdrop-blur-md">
+          <span className="pointer-events-none absolute left-2.5 top-5 flex items-center gap-1 rounded-full bg-black/35 px-2 py-1 text-[10px] text-white">
             <span className="h-1.5 w-1.5 rounded-full bg-success" /> 在线
           </span>
         )}
         {profile.verified && (
-          <span className="pointer-events-none absolute right-2.5 top-5 inline-flex items-center gap-0.5 rounded-full bg-sky-500/90 px-2 py-1 text-[10px] font-medium text-white backdrop-blur-md">
+          <span className="pointer-events-none absolute right-2.5 top-5 inline-flex items-center gap-0.5 rounded-full bg-sky-500/90 px-2 py-1 text-[10px] font-medium text-white">
             <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6">
               <circle cx="8" cy="8" r="6" />
               <path d="m5.2 8.2 1.8 1.8 3.8-3.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -95,7 +93,7 @@ export default function ProfileCard({ profile }: { profile: Profile }) {
             {profile.intents.map((i) => (
               <span
                 key={i}
-                className="inline-flex items-center gap-0.5 rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] backdrop-blur-md"
+                className="inline-flex items-center gap-0.5 rounded-full bg-white/15 px-1.5 py-0.5 text-[10px]"
               >
                 <span className="opacity-90">{intentIcon[i]}</span>
                 {intentLabel[i]}
@@ -112,6 +110,6 @@ export default function ProfileCard({ profile }: { profile: Profile }) {
           <VoicePlayButton profile={profile} />
         </div>
       </div>
-    </Link>
+    </a>
   );
 }
