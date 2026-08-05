@@ -69,7 +69,17 @@ export default function TabBar() {
   ] as const;
 
   const go = (href: string) => {
-    router.push(href);
+    try {
+      router.push(href);
+    } catch {
+      /* ignore */
+    }
+    window.setTimeout(() => {
+      const path = href.split("?")[0];
+      if (!window.location.pathname.startsWith(path)) {
+        window.location.assign(href);
+      }
+    }, 350);
   };
 
   const onCompose = () => {

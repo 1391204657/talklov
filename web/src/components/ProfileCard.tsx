@@ -35,18 +35,44 @@ const intentIcon: Record<string, React.ReactNode> = {
   ),
 };
 
-/**
- * Use button+router instead of <Link> — WeChat / some CN iOS WebViews
- * drop nested Link navigation while still allowing plain buttons.
- */
 export default function ProfileCard({ profile }: { profile: Profile }) {
   const router = useRouter();
+  const href = `/profile/${profile.id}`;
+
+  const open = () => {
+    try {
+      router.push(href);
+    } catch {
+      /* ignore */
+    }
+    window.setTimeout(() => {
+      if (!window.location.pathname.startsWith(`/profile/${profile.id}`)) {
+        window.location.assign(href);
+      }
+    }, 350);
+  };
 
   return (
-    <button
-      type="button"
-      onClick={() => router.push(`/profile/${profile.id}`)}
-      className="group block w-full animate-fadeUp text-left"
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={open}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          open();
+        }
+      }}
+      onTouchEnd={(e) => {
+        // Prefer touchEnd on iPhone; preventDefault avoids a duplicate click
+        e.preventDefault();
+        open();
+      }}
+      className="group relative block w-full animate-fadeUp cursor-pointer text-left"
+      style={{
+        touchAction: "manipulation",
+        WebkitTapHighlightColor: "transparent",
+      }}
     >
       <div className="relative">
         <ProfilePhoto
@@ -100,11 +126,14 @@ export default function ProfileCard({ profile }: { profile: Profile }) {
           </div>
         </div>
 
-        <VoicePlayButton
-          profile={profile}
-          className="absolute bottom-2.5 right-2.5"
-        />
+        <div
+          className="absolute bottom-2.5 right-2.5 z-10"
+          onClick={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+        >
+          <VoicePlayButton profile={profile} />
+        </div>
       </div>
-    </button>
+    </div>
   );
 }

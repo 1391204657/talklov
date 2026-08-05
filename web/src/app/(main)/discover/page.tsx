@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ProfileCard from "@/components/ProfileCard";
 import MeAvatarButton from "@/components/MeAvatarButton";
 import { isUuid, useProfiles } from "@/lib/useProfiles";
+import { useApp } from "@/lib/store";
 import {
   HIDE_ACTIVE_CHATS_FROM_DISCOVER,
   listActiveChatPartnerIds,
@@ -19,6 +20,13 @@ const filters = [
 export default function Discover() {
   const [filter, setFilter] = useState("all");
   const { profiles, loading } = useProfiles();
+  const { closeModals, registerOpen, verifyOpen } = useApp();
+
+  // iPhone Safari: leftover auth sheet can sit invisible and eat all taps
+  useEffect(() => {
+    if (registerOpen || verifyOpen) closeModals();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount
+  }, []);
 
   const activeIds = useMemo(() => {
     if (!HIDE_ACTIVE_CHATS_FROM_DISCOVER) return new Set<string>();
@@ -26,7 +34,6 @@ export default function Discover() {
   }, [profiles, filter]);
 
   const list = profiles.filter((p) => {
-    // Only hide real users you've already chatted with — keep ~30 virtual demos visible.
     if (
       HIDE_ACTIVE_CHATS_FROM_DISCOVER &&
       activeIds.has(p.id) &&
@@ -43,17 +50,19 @@ export default function Discover() {
   return (
     <main>
       <header className="sticky top-0 z-20 bg-background/70 px-4 pt-3 pb-2 backdrop-blur-xl">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3">
           <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pr-1">
             {filters.map((f) => (
               <button
                 key={f.id}
+                type="button"
                 onClick={() => setFilter(f.id)}
                 className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm transition ${
                   filter === f.id
                     ? "bg-accent/15 font-medium text-accent shadow-sm"
                     : "glass text-muted"
                 }`}
+                style={{ touchAction: "manipulation" }}
               >
                 {f.id === "online" ? (
                   <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-success align-middle" />
