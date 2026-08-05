@@ -1,4 +1,4 @@
-import type { Profile } from "./types";
+﻿import type { Profile } from "./types";
 
 /** Moment media — video reserved for a later release. */
 export type MomentMedia =
@@ -41,8 +41,8 @@ export const momentPosts: MomentPost[] = [
     time: "38 分钟前",
     text: "今天第一次用英语点了咖啡，店员居然听懂了！求纠错：\n“Can I get a oat milk latte, less sweet?”",
     media: [
-      { type: "image", url: "/avatars/lin-2.png", alt: "咖啡店" },
-      { type: "image", url: "/avatars/lin-3.png", alt: "拿铁" },
+      { type: "image", url: "/avatars/lin-2.jpg", alt: "咖啡店" },
+      { type: "image", url: "/avatars/lin-3.jpg", alt: "拿铁" },
     ],
     likes: 24,
     comments: 8,
@@ -59,7 +59,7 @@ export const momentPosts: MomentPost[] = [
     authorId: "jack",
     time: "1 小时前",
     text: "学了一个新词：“接地气”。My Chinese teacher says it means down-to-earth. 用对了吗？😄\n今天去了菜市场，感觉自己终于有点接地气了。",
-    media: [{ type: "image", url: "/avatars/jack-2.png", alt: "菜市场" }],
+    media: [{ type: "image", url: "/avatars/jack-2.jpg", alt: "菜市场" }],
     likes: 41,
     comments: 15,
     seedComments: [
@@ -75,8 +75,8 @@ export const momentPosts: MomentPost[] = [
     time: "2 小时前",
     text: "广州早茶約嗎？想认识喜欢美食的外国朋友一起练英语～ 🥟\nAnyone free this Sunday for dim sum + English practice?",
     media: [
-      { type: "image", url: "/avatars/shan-2.png", alt: "早茶" },
-      { type: "image", url: "/avatars/shan-3.png", alt: "点心" },
+      { type: "image", url: "/avatars/shan-2.jpg", alt: "早茶" },
+      { type: "image", url: "/avatars/shan-3.jpg", alt: "点心" },
     ],
     likes: 33,
     comments: 12,
@@ -91,7 +91,7 @@ export const momentPosts: MomentPost[] = [
     authorId: "mei",
     time: "3 小时前",
     text: "练口语打卡 Day 12：今天跟语伴聊了宠物话题。\nI said “My cat is very lovely” — 有没有更自然的说法？",
-    media: [{ type: "image", url: "/avatars/mei-2.png", alt: "猫咪" }],
+    media: [{ type: "image", url: "/avatars/mei-2.jpg", alt: "猫咪" }],
     likes: 19,
     comments: 6,
     seedComments: [
@@ -106,7 +106,7 @@ export const momentPosts: MomentPost[] = [
     authorId: "ryan",
     time: "5 小时前",
     text: "Tried writing a WeChat moment in Chinese 🙈\n「今天天气很好，我想去公园跑步和听播客。」\nPlease roast my grammar gently.",
-    media: [{ type: "image", url: "/avatars/ryan-2.png", alt: "公园跑步" }],
+    media: [{ type: "image", url: "/avatars/ryan-2.jpg", alt: "公园跑步" }],
     likes: 56,
     comments: 21,
     seedComments: [
@@ -122,7 +122,7 @@ export const momentPosts: MomentPost[] = [
     authorId: "yuki",
     time: "昨天",
     text: "上海周末雨好多… 宅家看剧学英语。推荐一部对话清晰、适合练听的剧吗？\nPrefer something lighter than crime shows 🌧️",
-    media: [{ type: "image", url: "/avatars/yuki-2.png", alt: "雨天窗景" }],
+    media: [{ type: "image", url: "/avatars/yuki-2.jpg", alt: "雨天窗景" }],
     likes: 28,
     comments: 17,
     seedComments: [
@@ -136,7 +136,7 @@ export const momentPosts: MomentPost[] = [
     authorId: "diego",
     time: "昨天",
     text: "Just ordered xiaolongbao for the first time. The soup exploded everywhere 😂\nHow do you politely ask for “extra vinegar” in Mandarin?",
-    media: [{ type: "image", url: "/avatars/diego-1.png", alt: "小笼包" }],
+    media: [{ type: "image", url: "/avatars/diego-1.jpg", alt: "小笼包" }],
     likes: 72,
     comments: 29,
     seedComments: [
@@ -151,7 +151,7 @@ export const momentPosts: MomentPost[] = [
     authorId: "wen",
     time: "2 天前",
     text: "同事教我一句口语：“没毛病”。我回了 “No problem”……\n是不是完全理解错了？求母语者科普 🙏",
-    media: [{ type: "image", url: "/avatars/wen-1.png", alt: "办公室白板" }],
+    media: [{ type: "image", url: "/avatars/wen-1.jpg", alt: "办公室白板" }],
     likes: 45,
     comments: 18,
     seedComments: [
@@ -170,8 +170,8 @@ export const momentPosts: MomentPost[] = [
     time: "2 天前",
     text: "Language exchange tip that worked for me: 10 minutes Chinese → 10 minutes English, no mixing mid-sentence.\n有人也这样练吗？想找固定搭档～",
     media: [
-      { type: "image", url: "/avatars/emma-1.png", alt: "笔记本计划" },
-      { type: "image", url: "/avatars/ashley-1.png", alt: "语伴咖啡" },
+      { type: "image", url: "/avatars/emma-1.jpg", alt: "笔记本计划" },
+      { type: "image", url: "/avatars/ashley-1.jpg", alt: "语伴咖啡" },
     ],
     likes: 61,
     comments: 24,
@@ -186,7 +186,7 @@ export const momentPosts: MomentPost[] = [
     authorId: "hao",
     time: "3 天前",
     text: "第一次用英语开线上会议，紧张到手抖。\n事后复盘：I keep saying “I think maybe…” too much. 有没有更自信的替换？",
-    media: [{ type: "image", url: "/avatars/hao-1.png", alt: "线上会议" }],
+    media: [{ type: "image", url: "/avatars/hao-1.jpg", alt: "线上会议" }],
     likes: 37,
     comments: 11,
     seedComments: [
