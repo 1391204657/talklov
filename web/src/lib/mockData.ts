@@ -6,7 +6,7 @@ export const CURRENT_USER = {
   country: "US" as const,
 };
 
-const av = (id: string, n: 1 | 2 | 3 = 1) => `/avatars/${id}-${n}.png`;
+const av = (id: string, n: 1 | 2 | 3 = 1) => `/avatars/${id}-${n}.jpg`;
 const gal = (id: string, count: 1 | 2 | 3 = 1) =>
   Array.from({ length: count }, (_, i) => av(id, (i + 1) as 1 | 2 | 3));
 
