@@ -8,17 +8,13 @@ export default function AppShell({
   footer?: React.ReactNode;
 }) {
   return (
-    <div className="app-shell flex h-dvh max-h-dvh flex-col overflow-hidden overscroll-none">
-      {/* Only this region scrolls — tab bar stays pinned; pan-y locks sideways drag */}
+    <div className="app-shell relative flex h-dvh max-h-dvh flex-col overflow-hidden overscroll-none">
+      {/* Only this region scrolls — tab bar stays pinned in normal flow (not absolute overlay). */}
       <div className="min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-y-contain no-scrollbar">
-        <div className="mx-auto w-full max-w-full pb-[calc(4.75rem+env(safe-area-inset-bottom))]">
-          {children}
-        </div>
+        <div className="mx-auto w-full max-w-full">{children}</div>
       </div>
       {footer ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40">
-          <div className="pointer-events-auto">{footer}</div>
-        </div>
+        <div className="relative z-[70] shrink-0 bg-background">{footer}</div>
       ) : null}
     </div>
   );

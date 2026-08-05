@@ -307,6 +307,26 @@ export function myProfileToDbPatch(
 }
 
 export async function fetchProfile(id: string): Promise<Profile | null> {
+  const looksUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      id
+    );
+  if (typeof window !== "undefined" && looksUuid) {
+    try {
+      const res = await fetch(`/api/profile/${id}`, {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { profile?: Profile | null };
+        if (json.profile) return json.profile;
+      }
+      if (res.status === 404) return null;
+    } catch (e) {
+      console.warn("[fetchProfile] API", e);
+    }
+  }
+
   const { data, error } = await must()
     .from("profiles")
     .select("*")

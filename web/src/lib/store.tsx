@@ -411,14 +411,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const onAdmin =
         typeof window !== "undefined" &&
         window.location.pathname.startsWith("/admin");
+      // Only auto-open once per browser tab after a real sign-in — not on every refresh.
+      // A sticky full-screen sheet can block Discover clicks on some CN WebViews.
+      let alreadyPrompted = false;
+      try {
+        alreadyPrompted =
+          sessionStorage.getItem("talklov_profile_prompted_v1") === "1";
+      } catch {
+        /* ignore */
+      }
+      const isFreshSignIn = event === "SIGNED_IN" || event === "USER_UPDATED";
+      const authLanding =
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("auth") === "1";
       if (
         needProfile &&
         !onAdmin &&
-        (event === "SIGNED_IN" ||
-          event === "USER_UPDATED" ||
-          event === "INITIAL_SESSION") &&
+        !alreadyPrompted &&
+        (isFreshSignIn || authLanding) &&
         !registerOpenRef.current
       ) {
+        try {
+          sessionStorage.setItem("talklov_profile_prompted_v1", "1");
+        } catch {
+          /* ignore */
+        }
         setRegisterStartStep(2);
         setRegisterOpen(true);
       }
