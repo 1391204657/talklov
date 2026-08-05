@@ -789,8 +789,7 @@ export default function Chat() {
       return;
     }
     if (tier !== "verified") {
-      alert("音视频通话需要先完成真人闪验");
-      openVerify("通话");
+      openVerify("音视频通话");
       return;
     }
     if (!conversationId) {

@@ -809,8 +809,15 @@ function RegisterModal() {
 }
 
 function VerifyModal() {
-  const { verifyOpen, closeModals, refreshTrustTier, locale, userId, tier } =
-    useApp();
+  const {
+    verifyOpen,
+    closeModals,
+    refreshTrustTier,
+    locale,
+    userId,
+    tier,
+    pendingAction,
+  } = useApp();
   const en = locale === "en";
   const [preview, setPreview] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -869,6 +876,12 @@ function VerifyModal() {
   const hint = en
     ? "A quick on-camera check to confirm you’re a real person. No government ID. You’ll get a verified badge."
     : "对着镜头做几个小动作，确认是真人本人。不采集证件。通过后展示「✓ 已认证」徽章。";
+  const pendingActionHint =
+    pendingAction && !en
+      ? `完成闪验后可继续：${pendingAction}`
+      : pendingAction && en
+        ? `After Flash Check you can continue: ${pendingAction}`
+        : null;
 
   const onPick = async (file: File | null) => {
     if (!file) return;
@@ -930,6 +943,11 @@ function VerifyModal() {
             {title} ✨
           </h3>
           <p className="mt-1 text-sm text-muted">{hint}</p>
+          {pendingActionHint && (
+            <p className="mt-2 rounded-xl bg-accent/10 px-3 py-2 text-sm text-accent">
+              {pendingActionHint}
+            </p>
+          )}
 
           {loadingStatus ? (
             <p className="mt-4 text-sm text-muted">{en ? "Checking…" : "查询状态…"}</p>
@@ -938,11 +956,29 @@ function VerifyModal() {
               {en ? "Flash Check complete — you’re verified." : "闪验已通过，你已获得认证徽章。"}
             </p>
           ) : pending ? (
-            <p className="mt-4 rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
-              {en
-                ? "Flash Check submitted — waiting for a quick review."
-                : "闪验已提交，等待人工复核。通过后即可解锁完整功能。"}
-            </p>
+            <div className="mt-4 space-y-3">
+              <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
+                {en
+                  ? "A previous Flash Check is still pending review. You can run it again now for an instant result."
+                  : "上次闪验还在等待复核。你可以马上重新闪验，通常会当场出结果。"}
+              </p>
+              {err && (
+                <p className="text-sm text-rose-600 dark:text-rose-300">{err}</p>
+              )}
+              {flashEnabled ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErr(null);
+                    setStatus(null);
+                    setUseFlash(true);
+                  }}
+                  className="btn-grad w-full rounded-xl py-3 font-semibold"
+                >
+                  {en ? "Start Flash Check" : "开始验证"}
+                </button>
+              ) : null}
+            </div>
           ) : (
             <>
               <ul className="mt-4 space-y-2 text-sm">
@@ -983,7 +1019,7 @@ function VerifyModal() {
                   }}
                   className="btn-grad mt-4 w-full rounded-xl py-3 font-semibold"
                 >
-                  {en ? "Start Flash Check" : "开始闪验"}
+                  {en ? "Start Flash Check" : "开始验证"}
                 </button>
               ) : (
                 <>

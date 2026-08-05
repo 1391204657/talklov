@@ -14,15 +14,21 @@ export default function InboxBadgeSync() {
 
   useEffect(() => {
     if (!configured || !userId) return;
+    let cancelled = false;
     const refresh = () => {
       fetchPendingIcebreakers()
-        .then(() => applyUnreadBadge(totalBadgeCount()))
-        .catch(() => applyUnreadBadge(totalBadgeCount()));
+        .then(() => {
+          if (!cancelled) applyUnreadBadge(totalBadgeCount());
+        })
+        .catch(() => {
+          if (!cancelled) applyUnreadBadge(totalBadgeCount());
+        });
     };
     refresh();
     const unsub = subscribePendingIcebreakers(userId, refresh);
-    const t = window.setInterval(refresh, 45_000);
+    const t = window.setInterval(refresh, 60_000);
     return () => {
+      cancelled = true;
       unsub();
       window.clearInterval(t);
     };

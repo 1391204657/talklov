@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useCallback,
   useRef,
   useState,
   ReactNode,
@@ -335,9 +336,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   };
 
-  const applyUnreadBadge = (count: number) => {
+  const applyUnreadBadge = useCallback((count: number) => {
     void setAppBadgeCount(count, notifyPrefs.badge);
-  };
+  }, [notifyPrefs.badge]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -1013,6 +1014,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       notifyPrefs,
       isBanned,
       banReason,
+      applyUnreadBadge,
     ]
   );
 

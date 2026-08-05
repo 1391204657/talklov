@@ -81,17 +81,47 @@ export default function Messages() {
   useEffect(() => {
     if (!useBackend || !userId) return;
     const load = () => {
-      fetchPendingIcebreakers()
-        .then((rows: PendingIcebreaker[]) => {
-          setQueue(
-            rows.map((r) => ({ id: r.id, text: r.text, sender: r.sender }))
+      void (async () => {
+        try {
+          const res = await fetch("/api/inbox", {
+            cache: "no-store",
+            credentials: "same-origin",
+          });
+          if (!res.ok) {
+            // Fallback to separate helpers
+            const [rows, list] = await Promise.all([
+              fetchPendingIcebreakers(),
+              fetchConversations(),
+            ]);
+            setQueue(
+              rows.map((r) => ({ id: r.id, text: r.text, sender: r.sender }))
+            );
+            setConvos(list);
+            applyUnreadBadge(totalBadgeCount());
+            return;
+          }
+          const json = (await res.json()) as {
+            pending?: PendingIcebreaker[];
+            conversations?: ConversationSummary[];
+            pendingCount?: number;
+          };
+          const { setBackendPendingCount } = await import("@/lib/unreadBadge");
+          setBackendPendingCount(
+            json.pendingCount ?? json.pending?.length ?? 0
           );
+          setQueue(
+            (json.pending || []).map((r) => ({
+              id: r.id,
+              text: r.text,
+              sender: r.sender,
+            }))
+          );
+          setConvos(json.conversations || []);
           applyUnreadBadge(totalBadgeCount());
-        })
-        .catch(() => {});
-      fetchConversations()
-        .then(setConvos)
-        .catch(() => {});
+        } catch {
+          /* ignore */
+        }
+      })();
     };
     load();
     const unsub = subscribePendingIcebreakers(userId, load);

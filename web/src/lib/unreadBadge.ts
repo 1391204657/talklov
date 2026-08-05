@@ -17,6 +17,8 @@ function readPending(): number {
 export function setBackendPendingCount(n: number) {
   if (typeof window === "undefined") return;
   const next = Math.max(0, Math.floor(n));
+  const prev = readPending();
+  if (prev === next) return;
   try {
     localStorage.setItem(PENDING_KEY, String(next));
   } catch {
