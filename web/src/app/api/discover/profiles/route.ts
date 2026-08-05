@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import {
   SUPABASE_ANON_KEY,
@@ -7,6 +7,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase/config";
 import { mapPublicProfile, type PublicProfileRow } from "@/lib/profileMap";
+import { isStaffOnlyEmail, staffOnlyEmails } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -30,15 +31,14 @@ function sortNewestFirst(rows: PublicProfileRow[]) {
   });
 }
 
-/** When name is empty, show email local-part so new QQ users are recognizable. */
-async function enrichEmptyNames(
-  admin: NonNullable<ReturnType<typeof getSupabaseAdmin>>,
-  rows: PublicProfileRow[]
-): Promise<PublicProfileRow[]> {
-  const need = rows.filter((r) => !(r.name || "").trim());
-  if (!need.length) return rows;
+/** Auth emails + staff-only user ids (ops accounts hidden from Discover). */
+async function loadAuthIndex(admin: SupabaseClient): Promise<{
+  emailById: Map<string, string>;
+  staffIds: Set<string>;
+}> {
   const emailById = new Map<string, string>();
-  // Prefer one listUsers pass for small user bases
+  const staffIds = new Set<string>();
+  const staff = new Set(staffOnlyEmails());
   try {
     let page = 1;
     for (;;) {
@@ -48,7 +48,12 @@ async function enrichEmptyNames(
       });
       if (error) break;
       for (const u of data?.users || []) {
-        if (u.email) emailById.set(u.id, u.email);
+        if (u.email) {
+          emailById.set(u.id, u.email);
+          if (isStaffOnlyEmail(u.email) || staff.has(u.email.toLowerCase())) {
+            staffIds.add(u.id);
+          }
+        }
       }
       if ((data?.users || []).length < 200) break;
       page += 1;
@@ -57,6 +62,13 @@ async function enrichEmptyNames(
   } catch {
     /* ignore */
   }
+  return { emailById, staffIds };
+}
+
+function enrichEmptyNames(
+  rows: PublicProfileRow[],
+  emailById: Map<string, string>
+): PublicProfileRow[] {
   return rows.map((r) => {
     if ((r.name || "").trim()) return r;
     const email = emailById.get(r.id);
@@ -64,6 +76,16 @@ async function enrichEmptyNames(
     if (!local) return r;
     return { ...r, name: local };
   });
+}
+
+function withoutStaff(
+  rows: PublicProfileRow[],
+  staffIds: Set<string>
+): PublicProfileRow[] {
+  if (!staffIds.size) {
+    return rows.filter((r) => (r.name || "").trim().toLowerCase() !== "admin");
+  }
+  return rows.filter((r) => !staffIds.has(r.id));
 }
 
 /**
@@ -78,7 +100,6 @@ export async function GET() {
 
   const admin = getSupabaseAdmin();
 
-  // Prefer admin direct select: full photos (no auth.uid photo gate), newest first.
   if (admin) {
     const sel = await admin
       .from("profiles")
@@ -88,10 +109,9 @@ export async function GET() {
       .limit(200);
 
     if (!sel.error && Array.isArray(sel.data)) {
-      const enriched = await enrichEmptyNames(
-        admin,
-        sel.data as PublicProfileRow[]
-      );
+      const { emailById, staffIds } = await loadAuthIndex(admin);
+      const visible = withoutStaff(sel.data as PublicProfileRow[], staffIds);
+      const enriched = enrichEmptyNames(visible, emailById);
       const profiles = sortNewestFirst(enriched)
         .map(mapPublicProfile)
         .filter((p) => p.id);
@@ -115,9 +135,15 @@ export async function GET() {
     return NextResponse.json({ profiles: [], source: "no-client" });
   }
 
+  const staffIds = admin
+    ? (await loadAuthIndex(admin)).staffIds
+    : new Set<string>();
+
   const rpc = await sb.rpc("list_profiles_public");
   if (!rpc.error && Array.isArray(rpc.data)) {
-    const profiles = sortNewestFirst(rpc.data as PublicProfileRow[])
+    const profiles = sortNewestFirst(
+      withoutStaff(rpc.data as PublicProfileRow[], staffIds)
+    )
       .map(mapPublicProfile)
       .filter((p) => p.id);
     return NextResponse.json({
@@ -133,8 +159,11 @@ export async function GET() {
     .limit(200);
 
   if (!sel.error && Array.isArray(sel.data)) {
-    const rows = (sel.data as PublicProfileRow[]).filter(
-      (r) => !(r as { banned_at?: string | null }).banned_at
+    const rows = withoutStaff(
+      (sel.data as PublicProfileRow[]).filter(
+        (r) => !(r as { banned_at?: string | null }).banned_at
+      ),
+      staffIds
     );
     const profiles = sortNewestFirst(rows)
       .map(mapPublicProfile)

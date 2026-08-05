@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/adminServer";
+import { isStaffOnlyEmail } from "@/lib/adminAuth";
 
 export async function GET(req: NextRequest) {
   const gate = await requireAdmin();
@@ -60,10 +61,13 @@ export async function GET(req: NextRequest) {
     })
   );
 
-  return NextResponse.json({
-    users: (data || []).map((r) => ({
+  // Hide staff-only ops accounts (e.g. admin@talklov.com) from the product user list
+  const users = (data || [])
+    .map((r) => ({
       ...r,
       email: emailById[r.id as string] ?? null,
-    })),
-  });
+    }))
+    .filter((u) => !isStaffOnlyEmail(u.email));
+
+  return NextResponse.json({ users });
 }

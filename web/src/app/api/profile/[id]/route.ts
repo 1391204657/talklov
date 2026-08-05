@@ -7,6 +7,7 @@ import {
 } from "@/lib/supabase/config";
 import { createClient } from "@supabase/supabase-js";
 import { mapPublicProfile, type PublicProfileRow } from "@/lib/profileMap";
+import { isStaffOnlyEmail } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -57,15 +58,21 @@ export async function GET(
       if (row.banned_at) {
         return NextResponse.json({ profile: null, source: "banned" });
       }
-      // Empty name → email local-part
-      if (!(row.name || "").trim()) {
-        try {
-          const { data: u } = await admin.auth.admin.getUserById(id);
-          const local = u.user?.email?.split("@")[0]?.trim();
-          if (local) row.name = local;
-        } catch {
-          /* ignore */
+      try {
+        const { data: u } = await admin.auth.admin.getUserById(id);
+        const email = u.user?.email ?? null;
+        if (isStaffOnlyEmail(email)) {
+          return NextResponse.json(
+            { profile: null, source: "staff" },
+            { status: 404 }
+          );
         }
+        if (!(row.name || "").trim()) {
+          const local = email?.split("@")[0]?.trim();
+          if (local) row.name = local;
+        }
+      } catch {
+        /* ignore */
       }
       return NextResponse.json({
         profile: mapPublicProfile(row),
