@@ -8,6 +8,7 @@ import { getSupabaseBrowser } from "./supabase/client";
 import { ChatMessage, Profile } from "./types";
 import { parseChineseVariants } from "./profile";
 import { isFounderFrozen } from "./entitlements";
+import { proxiedMediaList, proxiedMediaUrl } from "./mediaProxy";
 
 // ---- Row shapes as stored in Postgres (snake_case) ----
 export interface DbProfile {
@@ -72,7 +73,8 @@ function timeLabel(iso: string): string {
 
 // ---- Mappers DB -> UI ----
 export function toProfile(r: DbProfile): Profile {
-  const photos = r.photos?.length ? r.photos : r.avatar_url ? [r.avatar_url] : [];
+  const raw = r.photos?.length ? r.photos : r.avatar_url ? [r.avatar_url] : [];
+  const photos = proxiedMediaList(raw.filter(Boolean) as string[]);
   return {
     id: r.id,
     name: r.name || "用户",
@@ -80,7 +82,7 @@ export function toProfile(r: DbProfile): Profile {
     gender: (r.gender === "female" ? "female" : "male") as Profile["gender"],
     country: (r.country === "CN" ? "CN" : "US") as Profile["country"],
     city: r.city ?? "",
-    photo: photos[0] ?? r.avatar_url ?? "",
+    photo: photos[0] ?? proxiedMediaUrl(r.avatar_url) ?? "",
     photos,
     nativeLang: r.native_lang ?? "",
     learningLang: r.learning_lang ?? "",

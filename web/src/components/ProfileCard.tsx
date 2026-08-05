@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Profile } from "@/lib/types";
 import ProfilePhoto from "./ProfilePhoto";
 import VoicePlayButton from "./VoicePlayButton";
@@ -35,11 +35,18 @@ const intentIcon: Record<string, React.ReactNode> = {
   ),
 };
 
+/**
+ * Use button+router instead of <Link> — WeChat / some CN iOS WebViews
+ * drop nested Link navigation while still allowing plain buttons.
+ */
 export default function ProfileCard({ profile }: { profile: Profile }) {
+  const router = useRouter();
+
   return (
-    <Link
-      href={`/profile/${profile.id}`}
-      className="group block animate-fadeUp"
+    <button
+      type="button"
+      onClick={() => router.push(`/profile/${profile.id}`)}
+      className="group block w-full animate-fadeUp text-left"
     >
       <div className="relative">
         <ProfilePhoto
@@ -51,12 +58,12 @@ export default function ProfileCard({ profile }: { profile: Profile }) {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 rounded-b-[1.35rem] bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
 
         {profile.online && (
-          <span className="absolute left-2.5 top-5 flex items-center gap-1 rounded-full bg-black/35 px-2 py-1 text-[10px] text-white backdrop-blur-md">
+          <span className="pointer-events-none absolute left-2.5 top-5 flex items-center gap-1 rounded-full bg-black/35 px-2 py-1 text-[10px] text-white backdrop-blur-md">
             <span className="h-1.5 w-1.5 rounded-full bg-success" /> 在线
           </span>
         )}
         {profile.verified && (
-          <span className="absolute right-2.5 top-5 inline-flex items-center gap-0.5 rounded-full bg-sky-500/90 px-2 py-1 text-[10px] font-medium text-white backdrop-blur-md">
+          <span className="pointer-events-none absolute right-2.5 top-5 inline-flex items-center gap-0.5 rounded-full bg-sky-500/90 px-2 py-1 text-[10px] font-medium text-white backdrop-blur-md">
             <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.6">
               <circle cx="8" cy="8" r="6" />
               <path d="m5.2 8.2 1.8 1.8 3.8-3.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -65,7 +72,7 @@ export default function ProfileCard({ profile }: { profile: Profile }) {
           </span>
         )}
 
-        <div className="absolute inset-x-0 bottom-0 p-2.5 pr-11 text-white">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 p-2.5 pr-11 text-white">
           <div className="flex items-baseline gap-1.5">
             <span className="text-[15px] font-semibold leading-tight">
               {profile.name}
@@ -98,6 +105,6 @@ export default function ProfileCard({ profile }: { profile: Profile }) {
           className="absolute bottom-2.5 right-2.5"
         />
       </div>
-    </Link>
+    </button>
   );
 }

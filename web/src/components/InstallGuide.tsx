@@ -50,7 +50,7 @@ function isStandalone(): boolean {
   );
 }
 
-const DISMISS_KEY = "talklov_install_guide_dismissed";
+const DISMISS_KEY = "talklov_install_guide_dismissed_v2";
 
 const copy = {
   zh: {
@@ -136,16 +136,22 @@ export default function InstallGuide() {
 
   useEffect(() => {
     if (isStandalone()) return;
-    if (sessionStorage.getItem(DISMISS_KEY) === "1") return;
+    // Permanent dismiss (localStorage) — session-only was re-blocking CN users every visit
+    try {
+      if (localStorage.getItem(DISMISS_KEY) === "1") return;
+      if (sessionStorage.getItem(DISMISS_KEY) === "1") return;
+    } catch {
+      /* ignore */
+    }
 
     const p = detectPlatform();
-    // Also show on large touch tablets even if UA is ambiguous (Android)
     const tablet = detectTablet();
     if (!p && !tablet) return;
 
     setPlatform(p || (tablet ? "android" : null));
     setForm(tablet ? "tablet" : "phone");
-    const timer = window.setTimeout(() => setVisible(true), 900);
+    // Delay longer so first-session Discover taps are not covered
+    const timer = window.setTimeout(() => setVisible(true), 4500);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -162,7 +168,14 @@ export default function InstallGuide() {
 
   function dismiss(persistSession = true) {
     setVisible(false);
-    if (persistSession) sessionStorage.setItem(DISMISS_KEY, "1");
+    if (persistSession) {
+      try {
+        localStorage.setItem(DISMISS_KEY, "1");
+        sessionStorage.setItem(DISMISS_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   async function installNative() {

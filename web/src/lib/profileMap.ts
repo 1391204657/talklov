@@ -3,6 +3,7 @@
 import type { Profile } from "./types";
 import { parseChineseVariants } from "./profile";
 import { isFounderFrozen } from "./entitlements";
+import { proxiedMediaList, proxiedMediaUrl } from "./mediaProxy";
 
 export type PublicProfileRow = {
   id: string;
@@ -45,7 +46,9 @@ export function mapPublicProfile(r: PublicProfileRow): Profile {
     : r.avatar_url
       ? [r.avatar_url]
       : [];
-  const photos = locked ? [] : raw.filter(Boolean);
+  const photos = locked
+    ? []
+    : proxiedMediaList(raw.filter(Boolean) as string[]);
   return {
     id: r.id,
     name: r.name || "用户",
@@ -53,7 +56,7 @@ export function mapPublicProfile(r: PublicProfileRow): Profile {
     gender: (r.gender === "female" ? "female" : "male") as Profile["gender"],
     country: (r.country === "CN" ? "CN" : "US") as Profile["country"],
     city: r.city ?? "",
-    photo: photos[0] ?? "",
+    photo: photos[0] ?? proxiedMediaUrl(r.avatar_url) ?? "",
     photos,
     nativeLang: r.native_lang ?? "",
     learningLang: r.learning_lang ?? "",

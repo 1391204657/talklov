@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useApp } from "@/lib/store";
@@ -69,6 +68,10 @@ export default function TabBar() {
     { href: "/learn", label: c.tabLearn, icon: tabIcons.learn },
   ] as const;
 
+  const go = (href: string) => {
+    router.push(href);
+  };
+
   const onCompose = () => {
     if (tier === "guest") {
       openRegister(locale === "en" ? "post a moment" : "发布动态");
@@ -79,7 +82,7 @@ export default function TabBar() {
 
   return (
     <nav
-      className="border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl"
+      className="relative z-[70] border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl"
       aria-label="Primary"
     >
       <div className="grid grid-cols-5 items-end">
@@ -88,9 +91,10 @@ export default function TabBar() {
           const active = path.startsWith(t.href);
           const badge = "badge" in t ? t.badge : 0;
           return (
-            <Link
+            <button
               key={t.href}
-              href={t.href}
+              type="button"
+              onClick={() => go(t.href)}
               className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] transition ${
                 active ? "text-accent" : "text-muted"
               }`}
@@ -104,7 +108,7 @@ export default function TabBar() {
                 )}
               </span>
               {t.label}
-            </Link>
+            </button>
           );
         })}
 
@@ -124,9 +128,10 @@ export default function TabBar() {
         {tabs.slice(2).map((t) => {
           const active = path.startsWith(t.href);
           return (
-            <Link
+            <button
               key={t.href}
-              href={t.href}
+              type="button"
+              onClick={() => go(t.href)}
               className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] transition ${
                 active ? "text-accent" : "text-muted"
               }`}
@@ -135,7 +140,7 @@ export default function TabBar() {
                 {t.icon}
               </span>
               {t.label}
-            </Link>
+            </button>
           );
         })}
       </div>
