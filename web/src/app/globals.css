@@ -106,9 +106,7 @@ body {
   background: var(--atmosphere);
   border-left: 1px solid var(--line);
   border-right: 1px solid var(--line);
-  overflow: hidden;
   overflow-x: hidden;
-  overscroll-behavior-y: contain;
 }
 
 .marketing-site {

@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * Shared shell for US and CN — no region branching.
- * Avoid touch-action: pan-y on the scroll parent (breaks taps in some iPhone WebViews).
+ * Same shell for US and CN.
+ * Uses document scroll + fixed tab bar — nested overflow:hidden/100dvh shells
+ * were eating taps on some iPhone Safari sessions while /diag (no shell) worked.
  */
 export default function AppShell({
   children,
@@ -12,22 +13,23 @@ export default function AppShell({
   footer?: React.ReactNode;
 }) {
   return (
-    <div
-      className="app-shell relative mx-auto flex flex-col bg-background"
-      style={{
-        height: "100dvh",
-        maxHeight: "100dvh",
-        overflow: "hidden",
-      }}
-    >
+    <div className="app-shell relative mx-auto flex min-h-dvh flex-col bg-background">
       <div
-        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto no-scrollbar"
-        style={{ WebkitOverflowScrolling: "touch" }}
+        className="flex-1"
+        style={{
+          paddingBottom: footer
+            ? "calc(4.25rem + env(safe-area-inset-bottom))"
+            : undefined,
+        }}
       >
-        <div className="mx-auto w-full max-w-full">{children}</div>
+        {children}
       </div>
       {footer ? (
-        <div className="relative z-[70] shrink-0 bg-surface">{footer}</div>
+        <div className="fixed inset-x-0 bottom-0 z-[70]">
+          <div className="mx-auto w-full max-w-[480px] border-t border-line bg-surface">
+            {footer}
+          </div>
+        </div>
       ) : null}
     </div>
   );

@@ -78,7 +78,7 @@ export default function TabBar() {
 
   return (
     <nav
-      className="relative z-[70] border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
+      className="relative z-[70] bg-surface pb-[env(safe-area-inset-bottom)]"
       aria-label="Primary"
       style={{ touchAction: "manipulation" }}
     >

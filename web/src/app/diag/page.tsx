@@ -123,11 +123,17 @@ export default function DiagPage() {
         ))}
         {rows.length === 0 && <li className="text-muted">测试中…</li>}
       </ul>
-      <p className="mt-6 space-x-4">
-        <a href="/discover" className="text-accent underline">
-          返回发现
+      <p className="mt-6 space-y-2">
+        <a
+          href="/discover"
+          className="block rounded-xl bg-accent/15 px-4 py-3 text-center font-medium text-accent"
+        >
+          点这里打开发现页（若能进说明 Safari 点击正常）
         </a>
-        <a href="/profile/lin" className="text-accent underline">
+        <a
+          href="/profile/lin"
+          className="block rounded-xl border border-line px-4 py-3 text-center text-accent"
+        >
           试开一个资料页
         </a>
       </p>
