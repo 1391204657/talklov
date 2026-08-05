@@ -24,6 +24,7 @@ import {
   setBackendPendingCount,
   totalBadgeCount,
 } from "@/lib/unreadBadge";
+import { cacheDiscoverProfiles } from "@/lib/profileCache";
 
 interface QueueItem {
   id: string;
@@ -216,6 +217,11 @@ export default function MessagesClient() {
     (c) => c.otherId,
     (c) => (c.lastMessageAt ? new Date(c.lastMessageAt).getTime() : 0)
   );
+
+  useEffect(() => {
+    const peers = convos.map((c) => c.other).filter(Boolean);
+    if (peers.length) cacheDiscoverProfiles(peers);
+  }, [convos]);
 
   if (!loggedIn) {
     return (
@@ -455,12 +461,28 @@ function Avatar({
   photo?: string;
   size: string;
 }) {
+  const [broken, setBroken] = useState(false);
+  const src =
+    photo && photo.startsWith("/avatars/") && photo.endsWith(".png")
+      ? `${photo.slice(0, -4)}.jpg`
+      : photo;
+  const showImg = Boolean(src) && !broken;
+
   return (
     <div
-      className={`flex ${size} shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-2 bg-cover bg-center text-sm font-semibold text-muted`}
-      style={photo ? { backgroundImage: `url(${photo})` } : undefined}
+      className={`flex ${size} shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-2 text-sm font-semibold text-muted`}
     >
-      {!photo ? (name || "?").slice(0, 1) : null}
+      {showImg ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={() => setBroken(true)}
+        />
+      ) : (
+        (name || "?").slice(0, 1)
+      )}
     </div>
   );
 }

@@ -79,7 +79,7 @@ export default function Chat() {
     isBanned,
   } = useApp();
   const chatT = tChat(locale === "en" ? "en" : "zh");
-  const { profile } = useProfile(params.id);
+  const { profile, loading: profileLoading } = useProfile(params.id);
   const useBackend = configured && !!userId && !isAiPersona(params.id);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const welcomeFired = useRef(false);
@@ -104,6 +104,11 @@ export default function Chat() {
   const [polish, setPolish] = useState<{
     polished: string;
     translation: string;
+  } | null>(null);
+  const [correction, setCorrection] = useState<{
+    original: string;
+    corrected: string;
+    note: string;
   } | null>(null);
   const [aiSource, setAiSource] = useState<string | null>(null);
   // Voice
@@ -282,6 +287,14 @@ export default function Chat() {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages]);
 
+  if (profileLoading && !profile) {
+    return (
+      <main className="flex flex-1 items-center justify-center text-sm text-muted">
+        加载中…
+      </main>
+    );
+  }
+
   if (!profile) {
     return (
       <main className="flex flex-1 items-center justify-center text-muted">
@@ -342,6 +355,7 @@ export default function Chat() {
 
   const doPolish = async () => {
     if (!input.trim()) return;
+    setCorrection(null);
     setIcebreakers(null);
     setAiBusy("polish");
     try {
@@ -351,6 +365,28 @@ export default function Chat() {
         tone: "friendly",
       });
       setPolish({ polished: data.polished, translation: data.translation });
+      setAiSource(data.source ?? null);
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const doCorrect = async (text: string) => {
+    const t = text.trim();
+    if (!t) return;
+    setPolish(null);
+    setIcebreakers(null);
+    setAiBusy("correct");
+    try {
+      const data = await callAI({
+        action: "correct",
+        text: t,
+      });
+      setCorrection({
+        original: t,
+        corrected: data.corrected ?? data.polished ?? t,
+        note: data.note ?? data.translation ?? "",
+      });
       setAiSource(data.source ?? null);
     } finally {
       setAiBusy(null);
@@ -1066,7 +1102,16 @@ export default function Chat() {
                 {m.kind !== "voice" && m.kind !== "image" && m.kind !== "video" && (
                   <button onClick={() => speak(m.text)}><svg viewBox="0 0 16 16" className="mr-0.5 inline h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h2l4-3v10L5 10H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z" /><path d="M11 5.5a3.5 3.5 0 0 1 0 5" /></svg>朗读</button>
                 )}
-                {!m.fromMe && m.kind !== "voice" && m.kind !== "image" && m.kind !== "video" && <button><svg viewBox="0 0 16 16" className="mr-0.5 inline h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2.5l3.5 3.5L5 14.5H1.5V11L10 2.5Z" /></svg>纠错</button>}
+                {!m.fromMe && m.kind !== "voice" && m.kind !== "image" && m.kind !== "video" && (
+                  <button
+                    type="button"
+                    disabled={aiBusy !== null}
+                    onClick={() => void doCorrect(m.text)}
+                  >
+                    <svg viewBox="0 0 16 16" className="mr-0.5 inline h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2.5l3.5 3.5L5 14.5H1.5V11L10 2.5Z" /></svg>
+                    {aiBusy === "correct" ? "纠错中…" : "纠错"}
+                  </button>
+                )}
                 <span>{m.time}</span>
               </div>
             </div>
@@ -1172,6 +1217,49 @@ export default function Chat() {
               className="flex-1 rounded-lg border border-line py-2 text-sm text-muted"
             >
               保持原文
+            </button>
+          </div>
+        </div>
+      )}
+
+      {correction && (
+        <div className="animate-fadeUp border-b border-line bg-surface-2/60 p-3">
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="font-medium text-accent">纠错建议</span>
+            <button onClick={() => setCorrection(null)} className="text-muted">
+              收起
+            </button>
+          </div>
+          <p className="mb-1 text-[11px] text-muted">原文</p>
+          <div className="rounded-xl border border-line bg-surface p-2.5 text-[13px] text-muted line-through decoration-rose-400/60">
+            {correction.original}
+          </div>
+          <p className="mb-1 mt-2 text-[11px] text-muted">更自然的说法</p>
+          <div className="rounded-xl border border-accent/30 bg-surface p-2.5 text-[14px]">
+            {correction.corrected}
+          </div>
+          {correction.note && (
+            <div className="mt-1 rounded-xl bg-surface px-2.5 py-1.5 text-[12px] text-muted">
+              {correction.note}
+            </div>
+          )}
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setInput(correction.corrected);
+                setCorrection(null);
+              }}
+              className="btn-grad flex-1 rounded-lg py-2 text-sm font-medium"
+            >
+              填入输入框
+            </button>
+            <button
+              type="button"
+              onClick={() => setCorrection(null)}
+              className="flex-1 rounded-lg border border-line py-2 text-sm text-muted"
+            >
+              关闭
             </button>
           </div>
         </div>

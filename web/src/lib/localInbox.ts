@@ -1,5 +1,7 @@
 /** Local demo inbox for AI partners (mei / jack) — survives refresh. */
 
+import { getProfile } from "./mockData";
+
 export type LocalConvo = {
   otherId: string;
   name: string;
@@ -12,13 +14,39 @@ export type LocalConvo = {
 const KEY = "talklov_local_inbox_v1";
 const PIN_KEY = "talklov_pinned_chats_v1";
 
+/** Fix stale /avatars/*.png after jpg migration; backfill from mock when empty. */
+function normalizeConvo(c: LocalConvo): LocalConvo {
+  const mock = getProfile(c.otherId);
+  let photo = (c.photo || "").trim();
+  if (photo.startsWith("/avatars/") && photo.endsWith(".png")) {
+    photo = photo.slice(0, -4) + ".jpg";
+  }
+  if (!photo && mock?.photo) photo = mock.photo;
+  const name = (c.name || "").trim() || mock?.name || c.name;
+  return { ...c, photo, name };
+}
+
 function read(): LocalConvo[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return [];
     const list = JSON.parse(raw) as LocalConvo[];
-    return Array.isArray(list) ? list : [];
+    if (!Array.isArray(list)) return [];
+    let dirty = false;
+    const next = list.map((c) => {
+      const n = normalizeConvo(c);
+      if (n.photo !== c.photo || n.name !== c.name) dirty = true;
+      return n;
+    });
+    if (dirty) {
+      try {
+        localStorage.setItem(KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+    }
+    return next;
   } catch {
     return [];
   }
@@ -103,14 +131,15 @@ export function upsertLocalConvo(
 ) {
   const list = read();
   const i = list.findIndex((c) => c.otherId === partial.otherId);
-  const next: LocalConvo = {
+  const mock = getProfile(partial.otherId);
+  const next = normalizeConvo({
     otherId: partial.otherId,
-    name: partial.name,
-    photo: partial.photo,
+    name: partial.name || mock?.name || "用户",
+    photo: partial.photo || mock?.photo || "",
     preview: partial.preview,
     unread: partial.unread,
     updatedAt: partial.updatedAt ?? Date.now(),
-  };
+  });
   if (i >= 0) list[i] = { ...list[i], ...next };
   else list.unshift(next);
   write(list);

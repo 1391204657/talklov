@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 type Action =
   | "icebreakers"
   | "polish"
+  | "correct"
   | "translate"
   | "dating_reply"
   | "dating_score"
@@ -56,6 +57,8 @@ function systemPrompt(action: Action) {
       return "You help users on a US-China language-exchange app write friendly, respectful opening messages. Always return 3 short bilingual openers (Chinese + English), each under 25 words, based on the other person's interests. Be warm, never creepy. Return as a JSON array of strings.";
     case "polish":
       return "You are a bilingual writing assistant on a language-exchange app. Rewrite the user's draft message to be natural, warm and clear in BOTH Chinese and English. Keep the original meaning. Return JSON: {\"polished\": string, \"translation\": string}.";
+    case "correct":
+      return "You are a friendly language tutor on a Chinese-English exchange app. The user is asking you to gently correct a chat partner's message. Fix grammar/wording while keeping meaning and tone. Return JSON only: {\"corrected\": string, \"note\": string} where note is a short Chinese explanation of the main fix (1 sentence). If already natural, return the same text and note saying 这句话已经很自然。";
     case "translate":
       return "You are a translator for a Chinese-English language-exchange app. Translate the message to the other language (Chinese<->English). Return only the translation text.";
     case "dating_reply":
@@ -127,6 +130,25 @@ function fallbackPolish(text: string) {
     translation: t
       ? `${t} :) (Did I say that right? Nice to meet you!)`
       : "Hi! Nice to meet you :)",
+  };
+}
+
+function fallbackCorrect(text: string) {
+  const t = text.trim();
+  if (!t) {
+    return { corrected: "", note: "没有可纠错的内容。" };
+  }
+  // Light demo fix: trim double spaces / capitalize first English letter.
+  let corrected = t.replace(/\s{2,}/g, " ").trim();
+  if (/^[a-z]/.test(corrected)) {
+    corrected = corrected[0].toUpperCase() + corrected.slice(1);
+  }
+  const changed = corrected !== t;
+  return {
+    corrected,
+    note: changed
+      ? "示例纠错：调整了格式/大小写。配置 AI_API_KEY 后会给出更准确的语法建议。"
+      : "这句话看起来已经比较自然。（示例模式；配置 AI_API_KEY 后可获详细纠错）",
   };
 }
 
@@ -280,6 +302,30 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (body.action === "correct") {
+      if (!usingLLM)
+        return NextResponse.json({
+          ...fallbackCorrect(body.text || ""),
+          source: "fallback",
+        });
+      const content = await callLLM(
+        "correct",
+        `Please correct this chat message:\n${body.text || ""}`
+      );
+      try {
+        return NextResponse.json({
+          ...(extractJson(content) as object),
+          source: "llm",
+        });
+      } catch {
+        return NextResponse.json({
+          corrected: content,
+          note: "",
+          source: "llm",
+        });
+      }
+    }
+
     if (body.action === "translate") {
       if (!usingLLM)
         return NextResponse.json({
@@ -397,6 +443,11 @@ export async function POST(req: NextRequest) {
     if (body.action === "polish")
       return NextResponse.json({
         ...fallbackPolish(body.text || ""),
+        source: "fallback-error",
+      });
+    if (body.action === "correct")
+      return NextResponse.json({
+        ...fallbackCorrect(body.text || ""),
         source: "fallback-error",
       });
     if (body.action === "dating_reply")
