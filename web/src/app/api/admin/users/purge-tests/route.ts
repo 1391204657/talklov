@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/adminServer";
 import { writeAdminAudit } from "@/lib/adminAudit";
 
-const DEFAULT_KEEP = ["7939761@qq.com", "2933363481@qq.com"];
+/** Vince2 + Fibersea — note 4939761 (not 7939761). */
+const DEFAULT_KEEP = ["4939761@qq.com", "2933363481@qq.com"];
 
 /**
  * POST { keepEmails?: string[], confirm: "PURGE_TEST_USERS" }

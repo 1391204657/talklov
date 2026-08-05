@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useApp } from "@/lib/store";
 import { tApp } from "@/lib/appCopy";
 import { subscribeInbox, totalUnread } from "@/lib/localInbox";
@@ -41,7 +42,6 @@ const tabIcons = {
 
 export default function TabBar() {
   const path = usePathname();
-  const router = useRouter();
   const { locale, tier, openRegister, applyUnreadBadge } = useApp();
   const c = tApp(locale);
   const [unread, setUnread] = useState(0);
@@ -68,46 +68,34 @@ export default function TabBar() {
     { href: "/learn", label: c.tabLearn, icon: tabIcons.learn },
   ] as const;
 
-  const go = (href: string) => {
-    try {
-      router.push(href);
-    } catch {
-      /* ignore */
-    }
-    window.setTimeout(() => {
-      const path = href.split("?")[0];
-      if (!window.location.pathname.startsWith(path)) {
-        window.location.assign(href);
-      }
-    }, 350);
-  };
-
   const onCompose = () => {
     if (tier === "guest") {
       openRegister(locale === "en" ? "post a moment" : "发布动态");
       return;
     }
-    router.push("/moments/compose");
+    // Hard navigate — more reliable than router.push on CN WebKit
+    window.location.assign("/moments/compose");
   };
 
   return (
     <nav
       className="relative z-[70] border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl"
       aria-label="Primary"
+      style={{ touchAction: "manipulation" }}
     >
       <div className="grid grid-cols-5 items-end">
-        {/* Left pair */}
         {tabs.slice(0, 2).map((t) => {
           const active = path.startsWith(t.href);
           const badge = "badge" in t ? t.badge : 0;
           return (
-            <button
+            <Link
               key={t.href}
-              type="button"
-              onClick={() => go(t.href)}
+              href={t.href}
+              prefetch={false}
               className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] transition ${
                 active ? "text-accent" : "text-muted"
               }`}
+              style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             >
               <span className={`relative ${active ? "opacity-100" : "opacity-80"}`}>
                 {t.icon}
@@ -118,39 +106,39 @@ export default function TabBar() {
                 )}
               </span>
               {t.label}
-            </button>
+            </Link>
           );
         })}
 
-        {/* Center + */}
         <div className="relative flex justify-center pb-1.5 pt-1">
           <button
             type="button"
             onClick={onCompose}
             className="btn-grad flex h-12 w-12 -translate-y-2 items-center justify-center rounded-full text-2xl font-light leading-none text-white shadow-[0_10px_28px_rgba(200,120,180,0.45)]"
             aria-label={locale === "en" ? "New moment" : "发布动态"}
+            style={{ touchAction: "manipulation" }}
           >
             +
           </button>
         </div>
 
-        {/* Right pair */}
         {tabs.slice(2).map((t) => {
           const active = path.startsWith(t.href);
           return (
-            <button
+            <Link
               key={t.href}
-              type="button"
-              onClick={() => go(t.href)}
+              href={t.href}
+              prefetch={false}
               className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] transition ${
                 active ? "text-accent" : "text-muted"
               }`}
+              style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
             >
               <span className={active ? "opacity-100" : "opacity-80"}>
                 {t.icon}
               </span>
               {t.label}
-            </button>
+            </Link>
           );
         })}
       </div>

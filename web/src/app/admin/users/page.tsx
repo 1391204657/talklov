@@ -52,6 +52,7 @@ export default function AdminUsersPage() {
   const [q, setQ] = useState("");
   const [bannedFilter, setBannedFilter] = useState<"all" | "1" | "0">("all");
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [authTotal, setAuthTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -70,6 +71,9 @@ export default function AdminUsersPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || t.actionFail);
         setUsers(data.users || []);
+        setAuthTotal(
+          typeof data.auth_total === "number" ? data.auth_total : null
+        );
       } catch (e) {
         setErr(e instanceof Error ? e.message : t.actionFail);
       } finally {
@@ -148,7 +152,7 @@ export default function AdminUsersPage() {
   ];
 
   const purgeTests = async () => {
-    const keep = ["7939761@qq.com", "2933363481@qq.com"];
+    const keep = ["4939761@qq.com", "2933363481@qq.com"];
     const ok = window.confirm(
       locale === "en"
         ? `Delete ALL auth users except:\n${keep.join("\n")}\n\nSoft-ban does NOT delete. This permanently deletes other test accounts. Continue?`
@@ -191,6 +195,11 @@ export default function AdminUsersPage() {
       <h1 className="text-xl font-semibold">{t.usersTitle}</h1>
       <p className="mt-1 text-sm text-zinc-400">
         {t.usersSub} {t.searchPhoneHint}
+        {authTotal != null && (
+          <span className="ml-2 text-zinc-500">
+            · Auth {authTotal} / list {users.length}
+          </span>
+        )}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button

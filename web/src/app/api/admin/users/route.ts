@@ -134,5 +134,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     users: users.slice(0, limit),
     total: users.length,
+    /** Includes staff; compare with `total` (staff filtered) when diagnosing missing users. */
+    auth_total: authUsers.length,
   });
 }

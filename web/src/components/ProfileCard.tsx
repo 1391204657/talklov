@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Profile } from "@/lib/types";
 import ProfilePhoto from "./ProfilePhoto";
 import VoicePlayButton from "./VoicePlayButton";
@@ -35,39 +35,17 @@ const intentIcon: Record<string, React.ReactNode> = {
   ),
 };
 
+/**
+ * Native <a>/<Link> — required for CN iPhone Safari when JS hydration is slow
+ * or touch handlers fight with pan-y scroll. Do not use div+onClick/onTouchEnd.
+ */
 export default function ProfileCard({ profile }: { profile: Profile }) {
-  const router = useRouter();
   const href = `/profile/${profile.id}`;
 
-  const open = () => {
-    try {
-      router.push(href);
-    } catch {
-      /* ignore */
-    }
-    window.setTimeout(() => {
-      if (!window.location.pathname.startsWith(`/profile/${profile.id}`)) {
-        window.location.assign(href);
-      }
-    }, 350);
-  };
-
   return (
-    <div
-      role="link"
-      tabIndex={0}
-      onClick={open}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          open();
-        }
-      }}
-      onTouchEnd={(e) => {
-        // Prefer touchEnd on iPhone; preventDefault avoids a duplicate click
-        e.preventDefault();
-        open();
-      }}
+    <Link
+      href={href}
+      prefetch={false}
       className="group relative block w-full animate-fadeUp cursor-pointer text-left"
       style={{
         touchAction: "manipulation",
@@ -128,12 +106,12 @@ export default function ProfileCard({ profile }: { profile: Profile }) {
 
         <div
           className="absolute bottom-2.5 right-2.5 z-10"
-          onClick={(e) => e.stopPropagation()}
-          onTouchEnd={(e) => e.stopPropagation()}
+          onClick={(e) => e.preventDefault()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           <VoicePlayButton profile={profile} />
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
