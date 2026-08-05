@@ -13,7 +13,8 @@ type Action =
   | "set_verified"
   | "clear_verified"
   | "ban"
-  | "unban";
+  | "unban"
+  | "delete";
 
 export async function GET(
   _req: NextRequest,
@@ -180,10 +181,15 @@ export async function POST(
     return NextResponse.json({ error: "Missing action" }, { status: 400 });
   }
 
-  // Never soft-ban the signed-in admin account via UI mistake
-  if (action === "ban" && id === user.id) {
+  // Never soft-ban / delete the signed-in admin account via UI mistake
+  if ((action === "ban" || action === "delete") && id === user.id) {
     return NextResponse.json(
-      { error: "Cannot ban your own admin account" },
+      {
+        error:
+          action === "delete"
+            ? "Cannot delete your own admin account"
+            : "Cannot ban your own admin account",
+      },
       { status: 400 }
     );
   }
@@ -330,6 +336,18 @@ export async function POST(
           targetUserId: id,
         });
         return NextResponse.json({ ok: true, banned: false });
+      }
+      case "delete": {
+        // Auth delete cascades profiles (FK on delete cascade) → gone from Discover.
+        const { error } = await admin.auth.admin.deleteUser(id);
+        if (error) throw error;
+        await writeAdminAudit(admin, {
+          adminUserId: user.id,
+          adminEmail: email,
+          action,
+          targetUserId: id,
+        });
+        return NextResponse.json({ ok: true, deleted: true });
       }
       default:
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });

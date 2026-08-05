@@ -35,7 +35,8 @@ type Action =
   | "set_verified"
   | "clear_verified"
   | "ban"
-  | "unban";
+  | "unban"
+  | "delete";
 
 function regionLabel(country: string | null, city: string | null) {
   const flag =
@@ -114,6 +115,9 @@ export default function AdminUsersPage() {
       reason = input.trim() || "Policy violation";
     }
     if (action === "unban" && !window.confirm(t.unbanConfirm)) {
+      return;
+    }
+    if (action === "delete" && !window.confirm(t.deleteConfirm)) {
       return;
     }
     setBusyId(id);
@@ -352,6 +356,14 @@ export default function AdminUsersPage() {
                       {t.ban}
                     </button>
                   )}
+                  <button
+                    type="button"
+                    disabled={busyId === u.id}
+                    onClick={() => run(u.id, "delete")}
+                    className="rounded-lg border border-rose-600/50 bg-rose-600/15 px-2.5 py-1 text-xs font-medium text-rose-100 hover:bg-rose-600/25 disabled:opacity-40"
+                  >
+                    {t.deleteUser}
+                  </button>
                 </div>
               </div>
             );

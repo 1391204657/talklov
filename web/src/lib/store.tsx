@@ -370,8 +370,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     const finishOAuthLanding = (needProfile: boolean, event: string) => {
+      // Never open the consumer onboarding sheet on /admin (refresh was popping profile form).
+      const onAdmin =
+        typeof window !== "undefined" &&
+        window.location.pathname.startsWith("/admin");
       if (
         needProfile &&
+        !onAdmin &&
         (event === "SIGNED_IN" ||
           event === "USER_UPDATED" ||
           event === "INITIAL_SESSION") &&

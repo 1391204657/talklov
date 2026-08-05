@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useApp } from "@/lib/store";
 import { defaultMyProfile, type MyProfile } from "@/lib/profile";
 import {
@@ -1053,6 +1054,9 @@ function VerifyModal() {
 }
 
 export default function Modals() {
+  const pathname = usePathname();
+  // Admin console shares root layout — never show consumer register/verify sheets there.
+  if (pathname?.startsWith("/admin")) return null;
   return (
     <>
       <RegisterModal />
