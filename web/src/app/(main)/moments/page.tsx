@@ -10,7 +10,15 @@ import {
   MomentMedia,
   momentPosts,
 } from "@/lib/momentsData";
-import { loadUserMoments, type UserMomentPost } from "@/lib/datingSim";
+import {
+  isUserMomentId,
+  loadUserMoments,
+  type UserMomentPost,
+} from "@/lib/datingSim";
+import {
+  mergeMomentsOrdered,
+  persistMomentInteraction,
+} from "@/lib/momentsDb";
 import { getDuoInvite, type DuoInvite } from "@/lib/duoDub";
 import { useApp } from "@/lib/store";
 
@@ -100,7 +108,8 @@ function MediaGrid({ media }: { media: MomentMedia[] }) {
 }
 
 export default function Moments() {
-  const { myProfile, tier, openRegister } = useApp();
+  const { myProfile, tier, openRegister, userId, locale } = useApp();
+  const pageTitle = locale === "en" ? "Moments" : "动态";
   const myName =
     tier === "guest" ? "游客" : myProfile.name.trim() || "我";
   const myPhoto = myProfile.photos[0] || "";
@@ -108,8 +117,20 @@ export default function Moments() {
   const [joinInvite, setJoinInvite] = useState<DuoInvite | null>(null);
 
   useEffect(() => {
-    setUserPosts(loadUserMoments());
-  }, []);
+    let cancelled = false;
+    (async () => {
+      const local = loadUserMoments();
+      if (!cancelled) setUserPosts(local);
+      if (userId) {
+        const { fetchMyMomentsFromDb } = await import("@/lib/momentsDb");
+        const db = await fetchMyMomentsFromDb(userId);
+        if (!cancelled) setUserPosts(mergeMomentsOrdered(db, local));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const initial = useMemo(() => {
     const map: Record<string, LocalState> = {};
@@ -127,7 +148,7 @@ export default function Moments() {
     }
     for (const p of userPosts) {
       map[p.id] = {
-        liked: false,
+        liked: Boolean(p.liked),
         likes: p.likes,
         comments: [...p.comments],
         corrections: [...p.corrections],
@@ -168,14 +189,21 @@ export default function Moments() {
     });
   };
 
+  const isOwnPost = (id: string) =>
+    userPosts.some((p) => p.id === id) || isUserMomentId(id);
+
   const toggleLike = (id: string) => {
     setState((prev) => {
       const cur = prev[id];
       if (!cur) return prev;
       const liked = !cur.liked;
+      const likes = cur.likes + (liked ? 1 : -1);
+      if (isOwnPost(id)) {
+        void persistMomentInteraction(id, { liked, likes });
+      }
       return {
         ...prev,
-        [id]: { ...cur, liked, likes: cur.likes + (liked ? 1 : -1) },
+        [id]: { ...cur, liked, likes },
       };
     });
   };
@@ -225,13 +253,17 @@ export default function Moments() {
       if (!cur) return prev;
       const text = cur.commentDraft.trim();
       if (!text) return prev;
+      const comments = [...cur.comments, { by: myName, text }];
+      if (isOwnPost(id)) {
+        void persistMomentInteraction(id, { comments });
+      }
       return {
         ...prev,
         [id]: {
           ...cur,
           commentDraft: "",
           showComment: false,
-          comments: [...cur.comments, { by: myName, text }],
+          comments,
         },
       };
     });
@@ -244,13 +276,17 @@ export default function Moments() {
       if (!cur) return prev;
       const text = cur.correctDraft.trim();
       if (!text) return prev;
+      const corrections = [...cur.corrections, { by: myName, text }];
+      if (isOwnPost(id)) {
+        void persistMomentInteraction(id, { corrections });
+      }
       return {
         ...prev,
         [id]: {
           ...cur,
           correctDraft: "",
           showCorrect: false,
-          corrections: [...cur.corrections, { by: myName, text }],
+          corrections,
         },
       };
     });
@@ -259,7 +295,7 @@ export default function Moments() {
   return (
     <main>
       <header className="sticky top-0 z-20 flex items-center justify-between bg-background/90 px-4 py-2 backdrop-blur">
-        <h1 className="text-base font-semibold">动态</h1>
+        <h1 className="text-base font-semibold">{pageTitle}</h1>
         <MeAvatarButton />
       </header>
       <ul className="space-y-3 px-4 pb-4 pt-1">

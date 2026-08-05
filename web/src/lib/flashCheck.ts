@@ -70,23 +70,10 @@ export function localizeVerifyError(message: string, en: boolean): string {
   };
   const hit = map[m];
   if (hit) return en ? hit.en : hit.zh;
-  // Already localized / unknown
   if (!en && /^[A-Za-z]/.test(m) && m.length < 80) {
     return `操作失败：${m}`;
   }
   return m;
-}
-
-/** Prefer Chinese Flash Check copy for CN / Chinese-native users even if UI locale was set to English. */
-export function preferFlashCheckEnglish(opts: {
-  locale: string;
-  region?: string;
-  nativeLang?: string;
-}): boolean {
-  if (opts.locale !== "en") return false;
-  if (opts.region === "CN") return false;
-  if ((opts.nativeLang || "").includes("中文")) return false;
-  return true;
 }
 
 /** AWS Amplify Face Liveness UI strings — keep in sync with locale. */

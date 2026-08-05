@@ -825,7 +825,7 @@ export default function Chat() {
       return;
     }
     if (tier !== "verified") {
-      openVerify("音视频通话");
+      openVerify(locale === "en" ? "voice/video calls" : "音视频通话");
       return;
     }
     if (!conversationId) {

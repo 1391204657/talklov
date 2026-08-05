@@ -226,7 +226,10 @@ export default function MessagesClient() {
   if (!loggedIn) {
     return (
       <main>
-        <header className="sticky top-0 z-20 flex items-center justify-end bg-background px-4 py-2">
+        <header className="sticky top-0 z-20 flex items-center justify-between bg-background px-4 py-2">
+          <h1 className="text-base font-semibold">
+            {en ? "Messages" : "消息"}
+          </h1>
           <MeAvatarButton />
         </header>
         <EmptyState
@@ -250,7 +253,10 @@ export default function MessagesClient() {
 
   return (
     <main>
-      <header className="sticky top-0 z-20 flex items-center justify-end bg-background px-4 py-2">
+      <header className="sticky top-0 z-20 flex items-center justify-between bg-background px-4 py-2">
+        <h1 className="text-base font-semibold">
+          {en ? "Messages" : "消息"}
+        </h1>
         <MeAvatarButton />
       </header>
       <div className="pt-1">

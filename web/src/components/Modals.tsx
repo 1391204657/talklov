@@ -27,7 +27,6 @@ import type { MarketingLocale } from "@/lib/marketingCopy";
 import {
   flashCopy,
   localizeVerifyError,
-  preferFlashCheckEnglish,
 } from "@/lib/flashCheck";
 
 const OTP_LEN = 6;
@@ -414,7 +413,10 @@ function RegisterModal() {
 
   const finish = (goVerify: boolean) => {
     completeRegister({ ...draft, phoneE164: e164 || draft.phoneE164, basicsLocked: true });
-    if (goVerify) openVerify("展示已验证标签");
+    if (goVerify)
+      openVerify(
+        locale === "en" ? "showing a verified badge" : "展示已验证标签"
+      );
   };
 
   const canBasics =
@@ -819,18 +821,11 @@ function VerifyModal() {
     closeModals,
     refreshTrustTier,
     locale,
-    region,
-    myProfile,
     userId,
     tier,
     pendingAction,
   } = useApp();
-  const en =
-    preferFlashCheckEnglish({
-      locale,
-      region,
-      nativeLang: myProfile.nativeLang,
-    }) && !/[\u4e00-\u9fa5]/.test(pendingAction || "");
+  const en = locale === "en";
   const t = flashCopy(en);
   const [preview, setPreview] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);

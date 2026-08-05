@@ -5,22 +5,24 @@ import ProfileCard from "@/components/ProfileCard";
 import MeAvatarButton from "@/components/MeAvatarButton";
 import { isUuid, useProfiles } from "@/lib/useProfiles";
 import { useApp } from "@/lib/store";
+import { tApp } from "@/lib/appCopy";
 import {
   HIDE_ACTIVE_CHATS_FROM_DISCOVER,
   listActiveChatPartnerIds,
 } from "@/lib/localInbox";
 
-const filters = [
-  { id: "all", label: "全部" },
-  { id: "CN", label: "🇨🇳 中国" },
-  { id: "US", label: "🇺🇸 美国" },
-  { id: "online", label: "在线" },
-];
-
 export default function Discover() {
   const [filter, setFilter] = useState("all");
   const { profiles, loading } = useProfiles();
-  const { closeModals, registerOpen, verifyOpen } = useApp();
+  const { closeModals, registerOpen, verifyOpen, locale } = useApp();
+  const c = tApp(locale);
+
+  const filters = [
+    { id: "all", label: c.filterAll },
+    { id: "CN", label: c.filterCN },
+    { id: "US", label: c.filterUS },
+    { id: "online", label: c.filterOnline },
+  ] as const;
 
   // iPhone Safari: leftover auth sheet can sit invisible and eat all taps
   useEffect(() => {
@@ -77,13 +79,17 @@ export default function Discover() {
       </header>
 
       {loading && list.length > 0 ? (
-        <div className="px-4 pb-1 text-[11px] text-muted">同步中…</div>
+        <div className="px-4 pb-1 text-[11px] text-muted">{c.syncing}</div>
       ) : null}
       {list.length === 0 ? (
         <div className="p-10 text-center text-sm text-muted">
           {loading
-            ? "加载中…"
-            : "还没有用户，快去邀请第一批种子用户吧～"}
+            ? locale === "en"
+              ? "Loading…"
+              : "加载中…"
+            : locale === "en"
+              ? "No people here yet — invite the first friends."
+              : "还没有用户，快去邀请第一批种子用户吧～"}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 px-3 pb-6 pt-1">
