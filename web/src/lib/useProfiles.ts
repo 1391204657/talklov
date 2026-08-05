@@ -26,7 +26,20 @@ function mergeDiscover(
   // Real Auth users (including kept accounts) stay visible; only demos are client mocks.
   const others = myId ? db.filter((p) => p.id !== myId) : db;
   const mockIds = new Set(mockProfiles.map((m) => m.id));
-  const realExtra = others.filter((p) => !mockIds.has(p.id));
+  const realExtra = others
+    .filter((p) => !mockIds.has(p.id))
+    .slice()
+    .sort((a, b) => {
+      const boostA =
+        a.boostUntil && new Date(a.boostUntil).getTime() > Date.now() ? 1 : 0;
+      const boostB =
+        b.boostUntil && new Date(b.boostUntil).getTime() > Date.now() ? 1 : 0;
+      if (boostA !== boostB) return boostB - boostA;
+      const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return cb - ca;
+    });
+  // Newest real users first, then ~30 virtual demos.
   const feed = [...realExtra, ...mockProfiles];
   // Testing: show my uploaded profile in Discover (local data: photos included).
   const showMe =

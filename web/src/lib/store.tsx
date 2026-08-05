@@ -146,9 +146,35 @@ interface AppState {
 
 const AppCtx = createContext<AppState | null>(null);
 
-function persistProfile(uid: string | null, p: Partial<MyProfile>) {
-  if (!isSupabaseConfigured || !uid) return;
-  upsertMyProfile(myProfileToDbPatch(uid, p)).catch(() => {});
+/** Prefer same-origin API (CN-safe); fall back to direct upsert. */
+async function persistProfile(
+  uid: string | null,
+  p: Partial<MyProfile>
+): Promise<{ photos?: string[] } | null> {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const res = await fetch("/api/profile/me", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(p),
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const json = (await res.json()) as { photos?: string[] };
+      return { photos: json.photos };
+    }
+  } catch (e) {
+    console.warn("[persistProfile] API", e);
+  }
+  if (!uid) return null;
+  try {
+    await upsertMyProfile(myProfileToDbPatch(uid, p));
+    return null;
+  } catch (e) {
+    console.warn("[persistProfile] direct", e);
+    return null;
+  }
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -338,26 +364,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ]);
         if (raw) {
           const fromDb = dbToMyPartial(raw);
-          setMyProfile((prev) => ({
-            ...prev,
-            ...fromDb,
-            // Keep locally uploaded data: photos if DB has none (Storage not wired yet)
-            photos:
-              fromDb.photos && fromDb.photos.length > 0
-                ? fromDb.photos
-                : prev.photos?.length
-                  ? prev.photos
-                  : [],
-            // Phone only via my_profile_secrets RPC (column revoked on profiles)
-            phoneE164:
-              secrets.phoneE164 || fromDb.phoneE164 || prev.phoneE164 || "",
-            voiceIntroUrl: prev.voiceIntroUrl || "",
-          }));
+          setMyProfile((prev) => {
+            const localPhotos = prev.photos?.length ? prev.photos : [];
+            const dbPhotos = fromDb.photos?.length ? fromDb.photos : [];
+            const photos = dbPhotos.length ? dbPhotos : localPhotos;
+            const name =
+              (fromDb.name || "").trim() || (prev.name || "").trim() || "";
+            const age = fromDb.age ?? prev.age;
+            const merged = {
+              ...prev,
+              ...fromDb,
+              name,
+              age,
+              photos,
+              phoneE164:
+                secrets.phoneE164 || fromDb.phoneE164 || prev.phoneE164 || "",
+              voiceIntroUrl: prev.voiceIntroUrl || "",
+            };
+            // Local had filled profile but DB still empty (CN direct upsert often fails)
+            const shouldPush =
+              (!!(prev.name || "").trim() && !(fromDb.name || "").trim()) ||
+              (localPhotos.length > 0 && dbPhotos.length === 0);
+            if (shouldPush) {
+              void persistProfile(uid, merged);
+            }
+            return merged;
+          });
           setTier(raw.verified ? "verified" : "light");
           const ban = await fetchMyBanStatus();
           setIsBanned(ban.banned);
           setBanReason(ban.banReason);
-          return profileNeedsBasics(raw.name, raw.age);
+          return profileNeedsBasics(raw.name || "", raw.age);
         }
         setTier((t) => (t === "guest" ? "light" : t));
         setIsBanned(false);
@@ -469,7 +506,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         next.country = prev.country;
         next.basicsLocked = true;
       }
-      persistProfile(userId, next);
+      void persistProfile(userId, next).then((synced) => {
+        if (synced?.photos?.length) {
+          setMyProfile((cur) => ({ ...cur, photos: synced.photos! }));
+        }
+      });
       return next;
     });
   };
@@ -481,7 +522,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...p,
         basicsLocked: true,
       };
-      persistProfile(userId, next);
+      void persistProfile(userId, next).then((synced) => {
+        if (synced?.photos?.length) {
+          setMyProfile((cur) => ({ ...cur, photos: synced.photos! }));
+        }
+      });
       // Mark offline phone map profile as complete
       if (next.phoneE164) {
         const map = readPhoneMap();

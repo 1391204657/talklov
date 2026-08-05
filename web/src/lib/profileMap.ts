@@ -34,6 +34,8 @@ export type PublicProfileRow = {
   founder_slot?: number | null;
   founder_last_active_at?: string | null;
   boost_until?: string | null;
+  created_at?: string | null;
+  banned_at?: string | null;
 };
 
 export function mapPublicProfile(r: PublicProfileRow): Profile {
@@ -70,5 +72,6 @@ export function mapPublicProfile(r: PublicProfileRow): Profile {
     founderFrozen:
       Boolean(r.is_founder) && isFounderFrozen(r.founder_last_active_at),
     boostUntil: r.boost_until ?? null,
+    createdAt: r.created_at ?? null,
   };
 }

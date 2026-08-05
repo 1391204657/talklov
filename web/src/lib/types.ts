@@ -27,6 +27,8 @@ export interface Profile {
   verified: boolean;
   online: boolean;
   photoPrivacy: PhotoPrivacy;
+  /** Server stripped photos for this viewer (photo_privacy gate). */
+  photosLocked?: boolean;
   /** Spoken Chinese variants (can be both Mandarin + Cantonese). */
   chineseVariants?: ChineseVariant[];
   /** Short voice hello / intro (data URL or remote). */
@@ -38,6 +40,10 @@ export interface Profile {
   isFounder?: boolean;
   founderSlot?: number | null;
   founderFrozen?: boolean;
+  /** Paid discover boost expiry (ISO). */
+  boostUntil?: string | null;
+  /** Profile created time (ISO) — newer users rank higher on Discover. */
+  createdAt?: string | null;
 }
 
 export interface ChatMessage {
@@ -52,4 +58,8 @@ export interface ChatMessage {
   durationSec?: number;
   time: string;
   flagged?: boolean;
+  /** Local emoji reaction (client-side for now). */
+  reaction?: string | null;
+  /** Quoted message preview when this is a reply. */
+  replyPreview?: string | null;
 }
