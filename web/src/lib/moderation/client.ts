@@ -53,6 +53,14 @@ export async function moderateContent(
       }),
     });
     const data = (await res.json()) as ModerationResult & { error?: string };
+    if (res.status === 401) {
+      // Not signed in — rely on local keywords only
+      return { allowed: true, categories: [], reason: "", source: "auth_required" };
+    }
+    if (res.status === 429) {
+      // Soft-fail open so chat isn't bricked; keywords already applied
+      return { allowed: true, categories: [], reason: "", source: "rate_limit" };
+    }
     if (!res.ok) {
       // Fail open for availability, but local keywords already ran
       return { allowed: true, categories: [], reason: "", source: "api_error" };

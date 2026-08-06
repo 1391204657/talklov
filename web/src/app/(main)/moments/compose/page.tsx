@@ -10,8 +10,8 @@ import {
   consumeMomentDraft,
   consumeMomentTag,
   MAX_MOMENT_IMAGES,
-  saveUserMoment,
 } from "@/lib/datingSim";
+import { publishUserMoment } from "@/lib/momentsDb";
 
 type DraftImage = { id: string; url: string };
 
@@ -130,7 +130,7 @@ export default function ComposeMomentPage() {
           return;
         }
       }
-      saveUserMoment({
+      await publishUserMoment(userId, {
         id: `um-${Date.now()}`,
         text: text.trim(),
         time: "刚刚",

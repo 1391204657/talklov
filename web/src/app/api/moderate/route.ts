@@ -5,10 +5,13 @@ import {
   type ModerationCategory,
   type ModerationResult,
 } from "@/lib/moderation/types";
+import { getSupabaseServer } from "@/lib/supabase/server";
+import { clientIp, rateLimitAllow } from "@/lib/rateLimit";
 
 /**
  * POST /api/moderate
  * Body: { text?: string, imageDataUrl?: string }
+ * Requires signed-in session. Rate-limited per user (+ IP).
  *
  * Pipeline:
  *  1) Local blocklist (always)
@@ -200,6 +203,39 @@ Return JSON only: {"allowed":boolean,"categories":string[],"reason_zh":string}`,
 }
 
 export async function POST(req: NextRequest) {
+  const sb = await getSupabaseServer();
+  if (!sb) {
+    return NextResponse.json({ error: "后端未配置" }, { status: 503 });
+  }
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  }
+
+  const ip = clientIp(req);
+  const userLimit = rateLimitAllow(`mod:u:${user.id}`, 40, 60_000);
+  if (!userLimit.ok) {
+    return NextResponse.json(
+      { error: "请求过于频繁，请稍后再试", allowed: true, source: "rate_limit" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(userLimit.retryAfterSec) },
+      }
+    );
+  }
+  const ipLimit = rateLimitAllow(`mod:ip:${ip}`, 80, 60_000);
+  if (!ipLimit.ok) {
+    return NextResponse.json(
+      { error: "请求过于频繁，请稍后再试", allowed: true, source: "rate_limit" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(ipLimit.retryAfterSec) },
+      }
+    );
+  }
+
   let body: Body;
   try {
     body = await req.json();
@@ -207,9 +243,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "无效请求" }, { status: 400 });
   }
 
-  const text = typeof body.text === "string" ? body.text : undefined;
+  const text = typeof body.text === "string" ? body.text.slice(0, 8000) : undefined;
   const imageDataUrl =
-    typeof body.imageDataUrl === "string" ? body.imageDataUrl : undefined;
+    typeof body.imageDataUrl === "string"
+      ? body.imageDataUrl.slice(0, 1_400_000)
+      : undefined;
 
   if (!text?.trim() && !imageDataUrl) {
     return NextResponse.json(allow("empty"));

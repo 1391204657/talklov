@@ -16,15 +16,21 @@ import {
   type PaidPlan,
 } from "@/lib/entitlements";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { readAffiliateCookie } from "@/lib/affiliate";
 
 export default function MembershipClient() {
-  const { locale, myProfile, userId, tier, region } = useApp();
+  const { locale, myProfile, userId, tier, region, authEmail, linkEmail } =
+    useApp();
   const en = locale === "en";
   const params = useSearchParams();
   const [ent, setEnt] = useState<Entitlement>(defaultEntitlement);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
+  const [emailDraft, setEmailDraft] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
+  const showEmailPrompt = Boolean(params.get("success")) && !authEmail;
 
   const priceRegion = resolveRegion(
     myProfile.country || region,
@@ -45,6 +51,10 @@ export default function MembershipClient() {
   }, [params, en]);
 
   useEffect(() => {
+    if (authEmail) setEmailDraft(authEmail);
+  }, [authEmail]);
+
+  useEffect(() => {
     if (!userId) return;
     const sb = getSupabaseBrowser();
     if (!sb) return;
@@ -53,7 +63,7 @@ export default function MembershipClient() {
       const { data } = await sb
         .from("profiles")
         .select(
-          "plan,plan_expires_at,is_founder,founder_slot,founder_granted_at,founder_last_active_at,boost_until,stripe_customer_id"
+          "plan,plan_expires_at,is_founder,founder_slot,founder_granted_at,founder_last_active_at,boost_until"
         )
         .eq("id", userId)
         .maybeSingle();
@@ -68,7 +78,7 @@ export default function MembershipClient() {
         founderLastActiveAt: last,
         founderFrozen: Boolean(data.is_founder) && isFounderFrozen(last),
         boostUntil: (data.boost_until as string) || null,
-        stripeCustomerId: (data.stripe_customer_id as string) || null,
+        stripeCustomerId: null,
       });
     })();
     return () => {
@@ -86,7 +96,10 @@ export default function MembershipClient() {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ catalogId }),
+        body: JSON.stringify({
+          catalogId,
+          refCode: readAffiliateCookie() || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Checkout failed");
@@ -143,6 +156,54 @@ export default function MembershipClient() {
           {banner}
         </div>
       )}
+
+      {showEmailPrompt && (
+        <div className="rounded-2xl border border-line bg-surface p-4">
+          <p className="text-sm font-semibold">
+            {en ? "Link email for receipts" : "绑定邮箱接收会员收据"}
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            {en
+              ? "Optional — helps with renewals and payment issues. You can skip."
+              : "可选。方便续费提醒与掉单核对，可稍后再绑。"}
+          </p>
+          <div className="mt-3 flex gap-2">
+            <input
+              type="email"
+              value={emailDraft}
+              onChange={(e) => {
+                setEmailDraft(e.target.value);
+                setEmailMsg(null);
+              }}
+              placeholder="name@example.com"
+              className="min-w-0 flex-1 rounded-xl border border-line bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+            <button
+              type="button"
+              disabled={emailBusy || !emailDraft.trim()}
+              onClick={async () => {
+                setEmailBusy(true);
+                const res = await linkEmail(emailDraft);
+                setEmailBusy(false);
+                setEmailMsg(
+                  res.ok
+                    ? en
+                      ? "Check your inbox to confirm."
+                      : "请查收确认邮件。"
+                    : res.error || (en ? "Failed" : "失败")
+                );
+              }}
+              className="shrink-0 rounded-xl bg-[#1c1c1f] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+            >
+              {emailBusy ? "…" : en ? "Send" : "发送"}
+            </button>
+          </div>
+          {emailMsg && (
+            <p className="mt-2 text-xs text-muted">{emailMsg}</p>
+          )}
+        </div>
+      )}
+
       {err && (
         <div className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
           {err}
@@ -187,7 +248,7 @@ export default function MembershipClient() {
             {new Date(ent.boostUntil!).toLocaleString()}
           </p>
         )}
-        {ent.stripeCustomerId && (
+        {(vip || ent.plan === "vip" || ent.isFounder) && (
           <button
             type="button"
             onClick={openPortal}
@@ -211,7 +272,8 @@ export default function MembershipClient() {
             · {en ? "Unlimited AI icebreakers / polish" : "AI 破冰 / 润色不限次"}
           </li>
           <li>· {en ? "Unlimited translate" : "翻译不限次"}</li>
-          <li>· {en ? "See who liked / viewed you" : "查看谁喜欢 / 看过我"}</li>
+          <li>· {en ? "See who favorited you" : "查看谁收藏了我"}</li>
+          <li>· {en ? "See who viewed your profile" : "查看谁看了我"}</li>
           <li>· {en ? "Priority discover ranking" : "发现页优先曝光"}</li>
           <li>· {en ? "Advanced filters" : "高级筛选"}</li>
         </ul>

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { CATALOG } from "@/lib/entitlements";
+import { AFFILIATE_COOKIE, normalizeAffiliateCode } from "@/lib/affiliate";
+import { stickReferralOnProfile } from "@/lib/affiliateServer";
 import { appUrl, getStripe, isStripeConfigured, stripePriceId } from "@/lib/stripe";
 
 export async function POST(req: NextRequest) {
@@ -24,12 +26,16 @@ export async function POST(req: NextRequest) {
   }
 
   let catalogId: string;
+  let bodyRef: string | null = null;
   try {
     const body = await req.json();
     catalogId = String(body.catalogId || "");
+    bodyRef = normalizeAffiliateCode(body.refCode);
   } catch {
     return NextResponse.json({ error: "无效请求" }, { status: 400 });
   }
+
+  const cookieRef = normalizeAffiliateCode(req.cookies.get(AFFILIATE_COOKIE)?.value);
 
   const item = CATALOG.find((c) => c.id === catalogId);
   if (!item) {
@@ -49,9 +55,15 @@ export async function POST(req: NextRequest) {
   const admin = getSupabaseAdmin() || sb;
   const { data: profile } = await admin
     .from("profiles")
-    .select("stripe_customer_id,name")
+    .select("stripe_customer_id,name,referred_by_code")
     .eq("id", user.id)
     .maybeSingle();
+
+  const stickyRef =
+    (await stickReferralOnProfile(user.id, bodyRef || cookieRef)) ||
+    normalizeAffiliateCode(profile?.referred_by_code as string | null) ||
+    bodyRef ||
+    cookieRef;
 
   let customerId = (profile?.stripe_customer_id as string) || null;
   if (!customerId) {
@@ -69,6 +81,12 @@ export async function POST(req: NextRequest) {
 
   const base = appUrl().replace(/\/$/, "");
   const mode = item.kind === "subscription" ? "subscription" : "payment";
+  const meta: Record<string, string> = {
+    supabase_user_id: user.id,
+    catalog_id: item.id,
+    product: item.id,
+  };
+  if (stickyRef) meta.ref_code = stickyRef;
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
@@ -77,18 +95,11 @@ export async function POST(req: NextRequest) {
     success_url: `${base}/me/membership?success=1`,
     cancel_url: `${base}/me/membership?canceled=1`,
     client_reference_id: user.id,
-    metadata: {
-      supabase_user_id: user.id,
-      catalog_id: item.id,
-      product: item.id,
-    },
+    metadata: meta,
     ...(mode === "subscription"
       ? {
           subscription_data: {
-            metadata: {
-              supabase_user_id: user.id,
-              catalog_id: item.id,
-            },
+            metadata: meta,
           },
         }
       : {}),

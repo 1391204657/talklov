@@ -19,6 +19,7 @@ import {
 } from "@/lib/calls";
 import { useApp } from "@/lib/store";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
+import { fetchProfile } from "@/lib/db";
 import {
   startCallRingtone,
   stopCallRingtone,
@@ -168,18 +169,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
           let name = "来电";
           let photo = "";
           try {
-            const { data } = await sb
-              .from("profiles")
-              .select("name,avatar_url,photos")
-              .eq("id", row.caller_id)
-              .maybeSingle();
-            if (data) {
-              name = (data.name as string) || name;
-              const photos = data.photos as string[] | null;
-              photo =
-                (photos && photos[0]) ||
-                (data.avatar_url as string) ||
-                "";
+            const peer = await fetchProfile(row.caller_id);
+            if (peer) {
+              name = peer.name || name;
+              photo = peer.photo || "";
             }
           } catch {
             /* ignore */

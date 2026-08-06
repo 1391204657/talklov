@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
+import {
+  recordAffiliateCommission,
+  stickReferralOnProfile,
+} from "@/lib/affiliateServer";
 
 export const runtime = "nodejs";
 
@@ -77,6 +81,23 @@ async function applyBoost(userId: string, minutes = 30) {
     status: "paid",
     meta: { minutes },
   });
+}
+
+async function resolveRefCodeForBuyer(
+  buyerUserId: string,
+  sessionRef?: string | null
+): Promise<string | null> {
+  const sticky = await stickReferralOnProfile(buyerUserId, sessionRef);
+  if (sticky) return sticky;
+  if (sessionRef) return sessionRef;
+  const admin = getSupabaseAdmin();
+  if (!admin) return null;
+  const { data } = await admin
+    .from("profiles")
+    .select("referred_by_code")
+    .eq("id", buyerUserId)
+    .maybeSingle();
+  return (data?.referred_by_code as string | null) || null;
 }
 
 export async function POST(req: NextRequest) {
@@ -157,6 +178,70 @@ export async function POST(req: NextRequest) {
             stripe_session_id: session.id,
           });
         }
+
+        const amount = session.amount_total ?? 0;
+        const currency = session.currency || "usd";
+        const refCode = await resolveRefCodeForBuyer(
+          userId,
+          session.metadata?.ref_code
+        );
+        if (refCode && amount > 0) {
+          await recordAffiliateCommission({
+            refCode,
+            buyerUserId: userId,
+            kind: "first",
+            product: catalogId || "unknown",
+            amountCents: amount,
+            currency,
+            stripeSessionId: session.id,
+            stripePaymentIntent:
+              typeof session.payment_intent === "string"
+                ? session.payment_intent
+                : null,
+            meta: { event: event.type },
+          });
+        }
+        break;
+      }
+      case "invoice.paid": {
+        const invoice = event.data.object as Stripe.Invoice;
+        const reason = (invoice as { billing_reason?: string }).billing_reason;
+        // Only renewals — first period is handled via checkout.session.completed
+        if (reason !== "subscription_cycle") break;
+
+        const invAny = invoice as unknown as {
+          subscription?: string | { id?: string } | null;
+          payment_intent?: string | { id?: string } | null;
+        };
+        const subId =
+          typeof invAny.subscription === "string"
+            ? invAny.subscription
+            : invAny.subscription?.id;
+        if (!subId) break;
+        const sub = await stripe.subscriptions.retrieve(subId);
+        const userId = sub.metadata?.supabase_user_id || "";
+        if (!userId) break;
+        const refCode = await resolveRefCodeForBuyer(
+          userId,
+          sub.metadata?.ref_code
+        );
+        const amount = invoice.amount_paid ?? 0;
+        if (!refCode || amount <= 0) break;
+        const paymentIntent =
+          typeof invAny.payment_intent === "string"
+            ? invAny.payment_intent
+            : invAny.payment_intent?.id || null;
+        await recordAffiliateCommission({
+          refCode,
+          buyerUserId: userId,
+          kind: "renew",
+          product: sub.metadata?.catalog_id || "vip_renew",
+          amountCents: amount,
+          currency: invoice.currency || "usd",
+          stripeInvoiceId: invoice.id,
+          stripePaymentIntent: paymentIntent,
+          meta: { event: event.type, billing_reason: reason },
+        });
         break;
       }
       case "customer.subscription.updated":

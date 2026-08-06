@@ -1,0 +1,13 @@
+---
+description: After shipping TalkLov web updates, commit (if asked or implied) and deploy production
+alwaysApply: true
+---
+
+# Deploy TalkLov after updates
+
+When finishing user-facing web changes for TalkLov (`web/`):
+
+1. Commit and push to `origin` when the user asked to save/ship, or when they previously set a standing preference to deploy after updates.
+2. Vercel project `vince-9911/talklov` has **Root Directory = `web`**. Deploy production with `npx vercel --prod --yes` from the **monorepo root** `NiHello/` (not from `web/`, or it looks for `web/web` and fails).
+3. GitHub is connected (`1391204657/talklov` → `vince-9911/talklov`). Pushing to `master` should auto-deploy Production. If auto-deploy does not appear within ~1–2 minutes, fall back to `npx vercel --prod --yes` from the monorepo root and confirm `https://talklov.com` is aliased.
+4. After deploy, briefly confirm the production URL / that talklov.com was aliased.

@@ -116,6 +116,8 @@ export type UserMomentPost = {
   text: string;
   time: string;
   likes: number;
+  /** Whether the current device liked this post (local). */
+  liked?: boolean;
   comments: { by: string; text: string }[];
   corrections: { by: string; text: string }[];
   tag?: string;
@@ -141,6 +143,35 @@ export function loadUserMoments(): UserMomentPost[] {
 export function saveUserMoment(post: UserMomentPost) {
   const list = loadUserMoments();
   localStorage.setItem(USER_MOMENTS_KEY, JSON.stringify([post, ...list].slice(0, 30)));
+}
+
+export function updateUserMoment(
+  id: string,
+  patch: Partial<
+    Pick<UserMomentPost, "likes" | "liked" | "comments" | "corrections" | "text">
+  >
+): UserMomentPost | null {
+  if (typeof window === "undefined") return null;
+  const list = loadUserMoments();
+  let updated: UserMomentPost | null = null;
+  const next = list.map((p) => {
+    if (p.id !== id) return p;
+    updated = { ...p, ...patch };
+    return updated;
+  });
+  if (!updated) return null;
+  localStorage.setItem(USER_MOMENTS_KEY, JSON.stringify(next));
+  return updated;
+}
+
+export function deleteUserMoment(id: string): void {
+  if (typeof window === "undefined") return;
+  const next = loadUserMoments().filter((p) => p.id !== id);
+  localStorage.setItem(USER_MOMENTS_KEY, JSON.stringify(next));
+}
+
+export function isUserMomentId(id: string): boolean {
+  return loadUserMoments().some((p) => p.id === id);
 }
 
 export function writeMomentDraft(text: string, tag?: string) {
