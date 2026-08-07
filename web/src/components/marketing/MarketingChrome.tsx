@@ -39,6 +39,9 @@ export function MarketingNav() {
           <a href="#how" className="hover:text-foreground">
             {t.howTitle}
           </a>
+          <Link href="/guides/language-exchange" className="hover:text-foreground">
+            {t.navGuides}
+          </Link>
           <Link href="/partners" className="hover:text-foreground">
             {t.navPartners}
           </Link>
@@ -132,6 +135,9 @@ export function MarketingFooter() {
           </div>
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted">
+          <Link href="/guides/language-exchange" className="hover:text-foreground">
+            {t.navGuides}
+          </Link>
           <Link href="/partners" className="hover:text-foreground">
             {t.navPartners}
           </Link>
@@ -144,9 +150,6 @@ export function MarketingFooter() {
           <Link href="/privacy" className="hover:text-foreground">
             {t.navPrivacy}
           </Link>
-          <a href="#download" className="hover:text-foreground">
-            {t.navDownload}
-          </a>
           <Link href="/discover" className="hover:text-foreground">
             {t.navOpenApp}
           </Link>

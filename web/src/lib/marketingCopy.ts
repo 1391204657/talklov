@@ -56,6 +56,7 @@ export const marketingCopy = {
     faqTitle: "常见问题",
     faqMore: "查看全部问题",
     navPartners: "推广合作",
+    navGuides: "指南",
     partnersTitle: "推广 TalkLov，赚取佣金",
     partnersSub:
       "适合内容创作者、社群主理人与 KOL。分享专属链接，用户开通 VIP / Boost 后按成交金额分佣。",
@@ -128,6 +129,7 @@ export const marketingCopy = {
     faqTitle: "FAQ",
     faqMore: "See all FAQs",
     navPartners: "Partners",
+    navGuides: "Guides",
     partnersTitle: "Promote TalkLov. Earn commission.",
     partnersSub:
       "For creators, community leads, and KOLs. Share your link — earn when people buy VIP or Boost.",

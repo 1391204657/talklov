@@ -70,3 +70,40 @@ export function faqPageJsonLd(locale: "zh" | "en" = "zh") {
     })),
   };
 }
+
+export function articleJsonLd(opts: {
+  title: string;
+  description: string;
+  path: string;
+  datePublished?: string;
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: opts.title,
+    description: opts.description,
+    url: absoluteUrl(opts.path),
+    datePublished: opts.datePublished || "2026-08-07",
+    dateModified: opts.datePublished || "2026-08-07",
+    author: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: SITE_URL,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      logo: {
+        "@type": "ImageObject",
+        url: absoluteUrl("/brand/talklov-app-icon-512.png"),
+      },
+    },
+    image: absoluteUrl("/brand/og-default.png"),
+    inLanguage: "zh-CN",
+    isPartOf: {
+      "@type": "WebSite",
+      name: SITE_NAME,
+      url: SITE_URL,
+    },
+  };
+}

@@ -52,6 +52,18 @@ export const seoCopy = {
       description: "浏览中美用户资料与照片，找到合拍的语言搭子。游客也可先逛。",
       path: "/discover",
     },
+    guideLanguage: {
+      title: "如何找到中美语言搭子 · TalkLov 指南",
+      description:
+        "从浏览发现页、注册登录到真人闪验：一步步在 TalkLov 找到合适的中英文语伴与朋友。",
+      path: "/guides/language-exchange",
+    },
+    guideFlashCheck: {
+      title: "真人闪验与安全聊天 · TalkLov 指南",
+      description:
+        "了解 TalkLov 闪验是什么、为什么聊天前要认证、如何保护隐私，以及安全交友小提示。",
+      path: "/guides/flash-check",
+    },
   },
   en: {
     defaultTitle: "TalkLov · US–China language partners & social",
@@ -91,6 +103,18 @@ export const seoCopy = {
       description:
         "Browse US–China profiles and photos. Find a language partner — guests welcome.",
       path: "/discover",
+    },
+    guideLanguage: {
+      title: "How to find a US–China language partner · TalkLov",
+      description:
+        "Browse Discover, sign up, then Flash Check — a practical guide to finding Mandarin/English partners on TalkLov.",
+      path: "/guides/language-exchange",
+    },
+    guideFlashCheck: {
+      title: "Flash Check & safer chat · TalkLov guide",
+      description:
+        "What Flash Check is, why TalkLov asks before chat, privacy tips, and safer ways to meet language partners.",
+      path: "/guides/flash-check",
     },
   },
 } as const;
