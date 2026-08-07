@@ -38,7 +38,6 @@ import {
   type OAuthProvider,
 } from "./authHelpers";
 import {
-  emailsMatch,
   getLastAuthEmail,
   isSessionLocked,
   setLastAuthEmail,
