@@ -198,6 +198,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [banReason, setBanReason] = useState<string | null>(null);
   const registerOpenRef = useRef(false);
   registerOpenRef.current = registerOpen;
+  const myProfileRef = useRef(myProfile);
+  myProfileRef.current = myProfile;
 
   const profileNeedsBasics = (name?: string | null, age?: number | null) =>
     !(name && String(name).trim()) || age == null || age < 18;
@@ -365,37 +367,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ]);
         if (raw) {
           const fromDb = dbToMyPartial(raw);
-          setMyProfile((prev) => {
-            const localPhotos = prev.photos?.length ? prev.photos : [];
-            const dbPhotos = fromDb.photos?.length ? fromDb.photos : [];
-            const photos = dbPhotos.length ? dbPhotos : localPhotos;
-            const name =
-              (fromDb.name || "").trim() || (prev.name || "").trim() || "";
-            const age = fromDb.age ?? prev.age;
-            const merged = {
-              ...prev,
-              ...fromDb,
-              name,
-              age,
-              photos,
-              phoneE164:
-                secrets.phoneE164 || fromDb.phoneE164 || prev.phoneE164 || "",
-              voiceIntroUrl: prev.voiceIntroUrl || "",
-            };
-            // Local had filled profile but DB still empty (CN direct upsert often fails)
-            const shouldPush =
-              (!!(prev.name || "").trim() && !(fromDb.name || "").trim()) ||
-              (localPhotos.length > 0 && dbPhotos.length === 0);
-            if (shouldPush) {
-              void persistProfile(uid, merged);
-            }
-            return merged;
-          });
+          const prev = myProfileRef.current;
+          const localPhotos = prev.photos?.length ? prev.photos : [];
+          const dbPhotos = fromDb.photos?.length ? fromDb.photos : [];
+          const photos = dbPhotos.length ? dbPhotos : localPhotos;
+          const name =
+            (fromDb.name || "").trim() || (prev.name || "").trim() || "";
+          const age = fromDb.age ?? prev.age;
+          const merged = {
+            ...prev,
+            ...fromDb,
+            name,
+            age,
+            photos,
+            phoneE164:
+              secrets.phoneE164 || fromDb.phoneE164 || prev.phoneE164 || "",
+            voiceIntroUrl: prev.voiceIntroUrl || "",
+            // Keep lock if either side already completed basics
+            basicsLocked:
+              prev.basicsLocked ||
+              (!profileNeedsBasics(fromDb.name, fromDb.age) &&
+                !!fromDb.gender &&
+                !!fromDb.country),
+          };
+          // Local had filled profile but DB still empty (CN direct upsert often fails)
+          const shouldPush =
+            (!!(prev.name || "").trim() && !(fromDb.name || "").trim()) ||
+            (localPhotos.length > 0 && dbPhotos.length === 0) ||
+            (prev.basicsLocked &&
+              profileNeedsBasics(raw.name || "", raw.age));
+          if (shouldPush) {
+            void persistProfile(uid, merged);
+          }
+          setMyProfile(merged);
           setTier(raw.verified ? "verified" : "light");
           const ban = await fetchMyBanStatus();
           setIsBanned(ban.banned);
           setBanReason(ban.banReason);
-          return profileNeedsBasics(raw.name || "", raw.age);
+          // Same Google/email account: don't force onboarding again if this
+          // device already has name+age (even when DB sync lagged).
+          return profileNeedsBasics(name, age);
+        }
+        // No DB row yet — still skip wizard if this device already completed basics.
+        const prev = myProfileRef.current;
+        if (!profileNeedsBasics(prev.name, prev.age)) {
+          void persistProfile(uid, { ...prev, basicsLocked: true });
+          setTier((t) => (t === "guest" ? "light" : t));
+          setIsBanned(false);
+          setBanReason(null);
+          return false;
         }
         setTier((t) => (t === "guest" ? "light" : t));
         setIsBanned(false);
@@ -680,9 +700,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const raw = await fetchDbProfile(uid);
       if (raw) {
-        setMyProfile((prev) => ({ ...prev, ...dbToMyPartial(raw) }));
+        const fromDb = dbToMyPartial(raw);
+        const prev = myProfileRef.current;
+        const name =
+          (fromDb.name || "").trim() || (prev.name || "").trim() || "";
+        const age = fromDb.age ?? prev.age;
+        setMyProfile({ ...prev, ...fromDb, name, age });
         setTier(raw.verified ? "verified" : "light");
-        needProfile = profileNeedsBasics(raw.name, raw.age);
+        needProfile = profileNeedsBasics(name, age);
+        if (needProfile === false && profileNeedsBasics(raw.name, raw.age)) {
+          void persistProfile(uid, { ...prev, ...fromDb, name, age });
+        }
+      } else if (!profileNeedsBasics(myProfileRef.current.name, myProfileRef.current.age)) {
+        needProfile = false;
+        void persistProfile(uid, myProfileRef.current);
       }
     } catch {
       /* new user */
@@ -891,16 +922,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const raw = await fetchDbProfile(uid);
       if (raw) {
-        setMyProfile((prev) => ({
+        const fromDb = dbToMyPartial(raw);
+        const prev = myProfileRef.current;
+        const name =
+          (fromDb.name || "").trim() || (prev.name || "").trim() || "";
+        const age = fromDb.age ?? prev.age;
+        setMyProfile({
           ...prev,
-          ...dbToMyPartial(raw),
+          ...fromDb,
+          name,
+          age,
           phoneE164: e164,
-        }));
+        });
         setTier(raw.verified ? "verified" : "light");
-        needProfile = !(raw.name && raw.age);
+        needProfile = profileNeedsBasics(name, age);
+        if (!needProfile && profileNeedsBasics(raw.name, raw.age)) {
+          void persistProfile(uid, {
+            ...prev,
+            ...fromDb,
+            name,
+            age,
+            phoneE164: e164,
+          });
+        }
       } else {
-        setMyProfile((prev) => ({ ...prev, phoneE164: e164 }));
+        const prev = myProfileRef.current;
+        setMyProfile({ ...prev, phoneE164: e164 });
         setTier("light");
+        if (!profileNeedsBasics(prev.name, prev.age)) {
+          needProfile = false;
+          void persistProfile(uid, { ...prev, phoneE164: e164, basicsLocked: true });
+        }
       }
     } catch {
       setMyProfile((prev) => ({ ...prev, phoneE164: e164 }));

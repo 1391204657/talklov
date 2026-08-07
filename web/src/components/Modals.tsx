@@ -134,10 +134,12 @@ function OtpBoxes({
 
 function Sheet({
   children,
+  footer,
   onClose,
   solid = false,
 }: {
   children: React.ReactNode;
+  footer?: React.ReactNode;
   onClose: () => void;
   solid?: boolean;
 }) {
@@ -155,12 +157,24 @@ function Sheet({
         style={solid ? { backgroundColor: "#ffffff" } : undefined}
       >
         <div
-          className={`overflow-y-auto overscroll-contain ${
-            solid ? "px-0 pb-0 pt-0" : "px-5 pb-7 pt-6"
+          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${
+            solid ? "px-0 pb-0 pt-0" : "px-5 pb-5 pt-6"
           }`}
         >
           {children}
         </div>
+        {footer ? (
+          <div
+            className={`shrink-0 border-t border-line px-5 pt-3 ${
+              solid ? "bg-white" : "bg-surface"
+            }`}
+            style={{
+              paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
+            }}
+          >
+            {footer}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -275,6 +289,31 @@ function RegisterModal() {
     setShowEmailForm(true);
     setDial(region === "CN" ? "+86" : "+1");
   }, [registerOpen, registerStartStep]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // OAuth can open the sheet before myProfile state flushes — refill empty draft fields.
+  useEffect(() => {
+    if (!registerOpen || step < 2) return;
+    setDraft((d) => {
+      const hasDraftBasics =
+        !!(d.name || "").trim() && d.age != null && d.age >= 18;
+      if (hasDraftBasics) return d;
+      const hasProfileBasics =
+        !!(myProfile.name || "").trim() &&
+        myProfile.age != null &&
+        myProfile.age >= 18;
+      if (!hasProfileBasics && !(myProfile.photos?.length > 0)) return d;
+      return {
+        ...defaultMyProfile,
+        ...myProfile,
+        ...d,
+        name: (d.name || "").trim() || myProfile.name || "",
+        age: d.age ?? myProfile.age,
+        photos: d.photos?.length ? d.photos : myProfile.photos || [],
+        interests: d.interests?.length ? d.interests : myProfile.interests || [],
+        phoneE164: d.phoneE164 || myProfile.phoneE164 || "",
+      };
+    });
+  }, [registerOpen, step, myProfile]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -428,9 +467,66 @@ function RegisterModal() {
 
   const legalLang = (locale === "en" ? "en" : "zh") as MarketingLocale;
 
+  const registerFooter =
+    !legalView && step === 2 ? (
+      <button
+        disabled={!canBasics}
+        onClick={() => setStep(3)}
+        className="btn-grad w-full rounded-xl py-3 font-semibold disabled:opacity-40"
+      >
+        {locale === "en" ? "Next →" : "下一步 →"}
+      </button>
+    ) : !legalView && step === 3 ? (
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setStep(2)}
+          className="flex-1 rounded-xl border border-line py-3 text-sm"
+        >
+          {locale === "en" ? "Back" : "上一步"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setStep(4)}
+          className="btn-grad flex-[2] rounded-xl py-3 font-semibold"
+        >
+          {locale === "en" ? "Next →" : "下一步 →"}
+        </button>
+      </div>
+    ) : !legalView && step === 4 ? (
+      <div className="space-y-2">
+        <button
+          disabled={draft.photos.length < 1}
+          onClick={() => finish(true)}
+          className="btn-grad w-full rounded-xl py-3 font-semibold disabled:opacity-40"
+        >
+          {locale === "en"
+            ? "Save & get verified 🛡️"
+            : "保存并去真人认证 🛡️"}
+        </button>
+        <button
+          disabled={draft.photos.length < 1}
+          onClick={() => finish(false)}
+          className="w-full rounded-xl border border-line py-2.5 text-sm text-muted disabled:opacity-40"
+        >
+          {locale === "en"
+            ? "Skip verification for now →"
+            : "稍后再认证，先去打招呼 →"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setStep(3)}
+          className="w-full py-1 text-center text-sm text-muted"
+        >
+          {locale === "en" ? "Back" : "上一步"}
+        </button>
+      </div>
+    ) : undefined;
+
   return (
     <Sheet
       solid={!!legalView}
+      footer={registerFooter}
       onClose={legalView ? () => setLegalView(null) : closeModals}
     >
       {legalView === "terms" && (
@@ -726,13 +822,6 @@ function RegisterModal() {
           <div className="mt-4">
             <ProfileBasicsFields value={draft} onChange={patch} />
           </div>
-          <button
-            disabled={!canBasics}
-            onClick={() => setStep(3)}
-            className="btn-grad mt-5 w-full rounded-xl py-3 font-semibold disabled:opacity-40"
-          >
-            {locale === "en" ? "Next →" : "下一步 →"}
-          </button>
         </div>
       )}
 
@@ -752,20 +841,6 @@ function RegisterModal() {
           <div className="mt-4">
             <ProfileAboutFields value={draft} onChange={patch} />
           </div>
-          <div className="mt-5 flex gap-2">
-            <button
-              onClick={() => setStep(2)}
-              className="flex-1 rounded-xl border border-line py-3 text-sm"
-            >
-              {locale === "en" ? "Back" : "上一步"}
-            </button>
-            <button
-              onClick={() => setStep(4)}
-              className="btn-grad flex-[2] rounded-xl py-3 font-semibold"
-            >
-              {locale === "en" ? "Next →" : "下一步 →"}
-            </button>
-          </div>
         </div>
       )}
 
@@ -782,32 +857,6 @@ function RegisterModal() {
           </div>
           <div className="mt-4">
             <ProfilePhotoFields value={draft} onChange={patch} />
-          </div>
-          <div className="mt-5 space-y-2">
-            <button
-              disabled={draft.photos.length < 1}
-              onClick={() => finish(true)}
-              className="btn-grad w-full rounded-xl py-3 font-semibold disabled:opacity-40"
-            >
-              {locale === "en"
-                ? "Save & get verified 🛡️"
-                : "保存并去真人认证 🛡️"}
-            </button>
-            <button
-              disabled={draft.photos.length < 1}
-              onClick={() => finish(false)}
-              className="w-full rounded-xl border border-line py-2.5 text-sm text-muted disabled:opacity-40"
-            >
-              {locale === "en"
-                ? "Skip verification for now →"
-                : "稍后再认证，先去打招呼 →"}
-            </button>
-            <button
-              onClick={() => setStep(3)}
-              className="w-full py-1 text-center text-sm text-muted"
-            >
-              {locale === "en" ? "Back" : "上一步"}
-            </button>
           </div>
         </div>
       )}
