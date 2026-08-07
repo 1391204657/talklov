@@ -79,6 +79,10 @@ export const appCopy = {
     usePasswordLogin: "使用密码登录",
     useEmailCode: "改用验证码登录",
     signingIn: "登录中…",
+    quickResume: "重新登录",
+    quickResumeHint: "本机可一键回到上次账号，无需验证码",
+    useOtherEmail: "换用其它邮箱",
+    signOutFull: "退出并清除本机登录",
     cnSmsBackupHint:
       "手机短信备用通道即将开通。目前请使用邮箱验证码或 Apple 登录。",
     usSmsPendingHint:
@@ -182,6 +186,10 @@ export const appCopy = {
     usePasswordLogin: "Use password instead",
     useEmailCode: "Use email code instead",
     signingIn: "Signing in…",
+    quickResume: "Sign back in",
+    quickResumeHint: "One tap to return on this device — no code needed",
+    useOtherEmail: "Use a different email",
+    signOutFull: "Sign out & clear this device",
     cnSmsBackupHint:
       "SMS backup is coming soon. For now, please use email code or Apple.",
     usSmsPendingHint:

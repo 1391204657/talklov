@@ -105,6 +105,7 @@ export default function Me() {
     updateMyProfile,
     reset,
     signOut,
+    signOutFull,
     configured,
     notifyPrefs,
     setNotifyPrefs,
@@ -661,12 +662,22 @@ export default function Me() {
         </div>
 
         {configured && tier !== "guest" && (
-          <button
-            onClick={() => signOut()}
-            className="w-full rounded-xl border border-line py-2.5 text-sm text-muted"
-          >
-            {c.signOut}
-          </button>
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="w-full rounded-xl border border-line py-2.5 text-sm text-muted"
+            >
+              {c.signOut}
+            </button>
+            <button
+              type="button"
+              onClick={() => void signOutFull()}
+              className="w-full py-1 text-center text-xs text-muted/80"
+            >
+              {c.signOutFull}
+            </button>
+          </div>
         )}
 
         <button

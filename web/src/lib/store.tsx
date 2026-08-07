@@ -38,6 +38,13 @@ import {
   type OAuthProvider,
 } from "./authHelpers";
 import {
+  emailsMatch,
+  getLastAuthEmail,
+  isSessionLocked,
+  setLastAuthEmail,
+  setSessionLocked,
+} from "./rememberedAuth";
+import {
   defaultNotifyPrefs,
   type NotifyPrefs,
   requestNotifyPermission,
@@ -88,6 +95,10 @@ interface AppState {
   userId: string | null;
   /** Auth email from Supabase session (OAuth / email login / linked). */
   authEmail: string | null;
+  /** Soft-locked session on this device — one-tap resume without OTP. */
+  canQuickResume: boolean;
+  resumeEmail: string | null;
+  lastAuthEmail: string | null;
   registerOpen: boolean;
   /** When opening register modal, jump to this step (2 = profile basics). */
   registerStartStep: number;
@@ -128,7 +139,12 @@ interface AppState {
     e164: string,
     code: string
   ) => Promise<{ ok: boolean; error?: string; needProfile?: boolean }>;
+  /** Soft logout: UI guest, keep session for one-tap resume on this device. */
   signOut: () => Promise<void>;
+  /** Hard logout: revoke local session (still remembers last email for prefill). */
+  signOutFull: () => Promise<void>;
+  /** Resume soft-locked session without OTP/password. */
+  resumeSession: () => Promise<{ ok: boolean; error?: string; needProfile?: boolean }>;
   setInstalled: (v: boolean) => void;
   setRegion: (r: "CN" | "global") => void;
   setPhotoPrivacy: (p: PhotoPrivacy) => void;
@@ -192,6 +208,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [pendingHelloId, setPendingHelloId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [authEmail, setAuthEmail] = useState<string | null>(null);
+  const [canQuickResume, setCanQuickResume] = useState(false);
+  const [resumeEmail, setResumeEmail] = useState<string | null>(null);
+  const [lastAuthEmail, setLastAuthEmailState] = useState<string | null>(null);
   const [notifyPrefs, setNotifyPrefsState] = useState<NotifyPrefs>(defaultNotifyPrefs);
   const [hydrated, setHydrated] = useState(false);
   const [isBanned, setIsBanned] = useState(false);
@@ -200,6 +219,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   registerOpenRef.current = registerOpen;
   const myProfileRef = useRef(myProfile);
   myProfileRef.current = myProfile;
+  const applyUserRef = useRef<
+    ((uid: string | null, email?: string | null) => Promise<boolean>) | null
+  >(null);
 
   const profileNeedsBasics = (name?: string | null, age?: number | null) =>
     !(name && String(name).trim()) || age == null || age < 18;
@@ -343,6 +365,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [notifyPrefs.badge]);
 
   useEffect(() => {
+    setLastAuthEmailState(getLastAuthEmail());
+  }, []);
+
+  useEffect(() => {
     if (!isSupabaseConfigured) return;
     const sb = getSupabaseBrowser();
     if (!sb) return;
@@ -355,8 +381,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Only signOut() should clear tier — otherwise kill-app relaunches wipe login.
       if (!uid) return false;
 
+      // Soft-locked: keep session on device but stay guest in UI.
+      if (isSessionLocked()) {
+        const remembered = email || getLastAuthEmail();
+        if (email) setLastAuthEmail(email);
+        setLastAuthEmailState(getLastAuthEmail());
+        setResumeEmail(remembered);
+        setCanQuickResume(true);
+        return false;
+      }
+
       setUserId(uid);
-      if (email !== undefined) setAuthEmail(email || null);
+      if (email !== undefined) {
+        setAuthEmail(email || null);
+        if (email) {
+          setLastAuthEmail(email);
+          setLastAuthEmailState(email.trim().toLowerCase());
+        }
+      }
+      setCanQuickResume(false);
+      setResumeEmail(null);
       try {
         const [raw, secrets] = await Promise.all([
           fetchDbProfile(uid),
@@ -427,6 +471,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    // Expose apply for resumeSession via ref
+    applyUserRef.current = applyUser;
+
     const finishOAuthLanding = (needProfile: boolean, event: string) => {
       // Never open the consumer onboarding sheet on /admin (refresh was popping profile form).
       const onAdmin =
@@ -483,7 +530,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const { data } = await sb.auth.getUser();
         uid = data.user?.id ?? null;
         email = data.user?.email ?? null;
-      } else {
+      }
+
+      if (isSessionLocked() && uid) {
+        if (email) setLastAuthEmail(email);
+        setLastAuthEmailState(getLastAuthEmail());
+        setResumeEmail(email || getLastAuthEmail());
+        setCanQuickResume(true);
+        return;
+      }
+
+      if (uid) {
         // Ensure tier is never stuck at guest once a session exists
         setTier((t) => (t === "guest" ? "light" : t));
         setUserId(uid);
@@ -503,6 +560,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (event === "SIGNED_OUT") {
         // Don't force guest here if local demo login exists — signOut() handles it
         setAuthEmail(null);
+        setCanQuickResume(false);
+        setResumeEmail(null);
+        setSessionLocked(false);
+        return;
+      }
+      if (isSessionLocked() && session?.user) {
+        const em = session.user.email || getLastAuthEmail();
+        if (session.user.email) setLastAuthEmail(session.user.email);
+        setLastAuthEmailState(getLastAuthEmail());
+        setResumeEmail(em);
+        setCanQuickResume(true);
         return;
       }
       void (async () => {
@@ -632,6 +700,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUserId(uid);
     setAuthEmail(data.user?.email ?? trimmed);
     setTier("light");
+    setLastAuthEmail(trimmed);
+    setLastAuthEmailState(trimmed);
+    setSessionLocked(false);
+    setCanQuickResume(false);
+    setResumeEmail(null);
 
     let needProfile = true;
     try {
@@ -747,6 +820,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUserId(uid);
     setAuthEmail(data.user?.email ?? trimmed);
     setTier("light");
+    setLastAuthEmail(trimmed);
+    setLastAuthEmailState(trimmed);
+    setSessionLocked(false);
+    setCanQuickResume(false);
+    setResumeEmail(null);
 
     let needProfile = true;
     try {
@@ -1013,15 +1091,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { ok: true, needProfile };
   };
 
-  const signOut = async () => {
-    const sb = getSupabaseBrowser();
-    if (sb) await sb.auth.signOut();
+  const clearUiToGuest = () => {
     setUserId(null);
     setAuthEmail(null);
     setTier("guest");
     setIsBanned(false);
     setBanReason(null);
-    // Clear local profile so Me doesn't keep the previous display name as a "guest"
     setMyProfile(defaultMyProfile);
     setRegisterOpen(false);
     setVerifyOpen(false);
@@ -1041,6 +1116,79 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch {}
   };
 
+  /** Soft logout — keep session for one-tap resume on this device. */
+  const signOut = async () => {
+    const sb = getSupabaseBrowser();
+    let email = authEmail || getLastAuthEmail();
+    if (sb) {
+      const { data } = await sb.auth.getSession();
+      email = data.session?.user?.email || email;
+    }
+    if (email) {
+      setLastAuthEmail(email);
+      setLastAuthEmailState(email.trim().toLowerCase());
+      setResumeEmail(email.trim().toLowerCase());
+    }
+    setSessionLocked(true);
+    setCanQuickResume(Boolean(email));
+    clearUiToGuest();
+  };
+
+  /** Hard logout — clear device session; still remember last email for prefill. */
+  const signOutFull = async () => {
+    const email = authEmail || resumeEmail || getLastAuthEmail();
+    if (email) {
+      setLastAuthEmail(email);
+      setLastAuthEmailState(email.trim().toLowerCase());
+    }
+    setSessionLocked(false);
+    setCanQuickResume(false);
+    setResumeEmail(null);
+    const sb = getSupabaseBrowser();
+    if (sb) await sb.auth.signOut();
+    clearUiToGuest();
+  };
+
+  const resumeSession = async (): Promise<{
+    ok: boolean;
+    error?: string;
+    needProfile?: boolean;
+  }> => {
+    const sb = getSupabaseBrowser();
+    if (!sb || !isSupabaseConfigured) {
+      return {
+        ok: false,
+        error: locale === "en" ? "Backend not configured" : "后端未配置",
+      };
+    }
+    const { data } = await sb.auth.getSession();
+    const user = data.session?.user;
+    if (!user?.id) {
+      setSessionLocked(false);
+      setCanQuickResume(false);
+      setResumeEmail(null);
+      return {
+        ok: false,
+        error:
+          locale === "en"
+            ? "Session expired — please use email code"
+            : "登录已过期，请用验证码重新登录",
+      };
+    }
+    setSessionLocked(false);
+    setCanQuickResume(false);
+    setResumeEmail(null);
+    if (user.email) {
+      setLastAuthEmail(user.email);
+      setLastAuthEmailState(user.email.trim().toLowerCase());
+    }
+    const apply = applyUserRef.current;
+    const needProfile = apply
+      ? await apply(user.id, user.email ?? null)
+      : false;
+    return { ok: true, needProfile };
+  };
+
   const setPhotoPrivacy = (p: PhotoPrivacy) =>
     updateMyProfile({ photoPrivacy: p });
   const toggleTheme = () =>
@@ -1051,6 +1199,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMyProfile(defaultMyProfile);
     setRegisterOpen(false);
     setVerifyOpen(false);
+    setCanQuickResume(false);
+    setResumeEmail(null);
+    setSessionLocked(false);
     try {
       localStorage.removeItem(KEY);
     } catch {}
@@ -1067,6 +1218,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       configured: isSupabaseConfigured,
       userId,
       authEmail,
+      canQuickResume,
+      resumeEmail,
+      lastAuthEmail,
       registerOpen,
       registerStartStep,
       verifyOpen,
@@ -1087,6 +1241,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       sendPhoneOtp,
       verifyPhoneOtp,
       signOut,
+      signOutFull,
+      resumeSession,
       setInstalled,
       setRegion,
       setPhotoPrivacy,
@@ -1110,6 +1266,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       myProfile,
       userId,
       authEmail,
+      canQuickResume,
+      resumeEmail,
+      lastAuthEmail,
       registerOpen,
       registerStartStep,
       verifyOpen,

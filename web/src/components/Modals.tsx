@@ -29,6 +29,7 @@ import {
   flashCopy,
   localizeVerifyError,
 } from "@/lib/flashCheck";
+import { emailsMatch } from "@/lib/rememberedAuth";
 
 const OTP_LEN = 6;
 
@@ -237,6 +238,10 @@ function RegisterModal() {
     sendEmailOtp,
     verifyEmailOtp,
     emailAuth,
+    canQuickResume,
+    resumeEmail,
+    lastAuthEmail,
+    resumeSession,
     setLocale,
     setRegion,
     locale,
@@ -269,7 +274,6 @@ function RegisterModal() {
     if (!registerOpen) {
       setStep(0);
       setNational("");
-      setEmail("");
       setPassword("");
       setEmailAuthMode("otp");
       setOtp("");
@@ -293,6 +297,8 @@ function RegisterModal() {
       });
       return;
     }
+    // Prefill last email; user can edit to another address.
+    setEmail(lastAuthEmail || resumeEmail || "");
     // SMS pending provider setup — email is the reliable OTP path for both regions.
     setShowEmailForm(true);
     setDial(region === "CN" ? "+86" : "+1");
@@ -427,6 +433,32 @@ function RegisterModal() {
     }
   };
 
+  const onQuickResume = async () => {
+    if (!requireLegal()) return;
+    setAuthErr(null);
+    setAuthBusy(true);
+    const res = await resumeSession();
+    setAuthBusy(false);
+    if (!res.ok) {
+      setAuthErr(
+        res.error ??
+          (locale === "en"
+            ? "Could not resume — use email code"
+            : "无法一键登录，请用验证码")
+      );
+      return;
+    }
+    if (res.needProfile) {
+      setStep(2);
+    } else {
+      closeModals();
+    }
+  };
+
+  const canResumeThisEmail =
+    canQuickResume &&
+    emailsMatch(email, resumeEmail || lastAuthEmail);
+
   const emailAuthFields = (
     <div className="space-y-2">
       <input
@@ -437,12 +469,38 @@ function RegisterModal() {
         autoComplete="email"
         onKeyDown={(e) => {
           if (e.key !== "Enter" || !email.trim()) return;
-          if (emailAuthMode === "password" && password) void signInWithPassword();
+          if (canResumeThisEmail) void onQuickResume();
+          else if (emailAuthMode === "password" && password)
+            void signInWithPassword();
           else if (emailAuthMode === "otp") void sendEmailCode();
         }}
         className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
       />
-      {emailAuthMode === "password" ? (
+      {canResumeThisEmail ? (
+        <>
+          <p className="text-center text-[11px] text-muted">
+            {copy.quickResumeHint}
+          </p>
+          <button
+            type="button"
+            disabled={authBusy || !agreedLegal}
+            onClick={() => void onQuickResume()}
+            className="btn-grad w-full rounded-xl py-3.5 font-semibold disabled:opacity-40"
+          >
+            {authBusy ? copy.signingIn : copy.quickResume}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEmail("");
+              setAuthErr(null);
+            }}
+            className="w-full py-1 text-center text-sm text-muted"
+          >
+            {copy.useOtherEmail}
+          </button>
+        </>
+      ) : emailAuthMode === "password" ? (
         <>
           <input
             type="password"
