@@ -8,16 +8,21 @@ import ReferralCapture from "@/components/ReferralCapture";
 import BanBanner from "@/components/BanBanner";
 import { CallProvider } from "@/components/calls/CallProvider";
 import InboxBadgeSync from "@/components/InboxBadgeSync";
+import { SITE_NAME, SITE_URL, seoCopy } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: "TalkLov · 你的中美语言搭子与交友平台",
-  description:
-    "TalkLov — 中美语言交换与自然交友。和母语者练中英文，认识另一个世界的人。",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: seoCopy.zh.defaultTitle,
+    template: `%s · ${SITE_NAME}`,
+  },
+  description: seoCopy.zh.defaultDescription,
+  applicationName: SITE_NAME,
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "TalkLov",
+    title: SITE_NAME,
   },
   icons: {
     icon: [
@@ -25,6 +30,33 @@ export const metadata: Metadata = {
       { url: "/brand/talklov-app-icon-512.png", sizes: "512x512", type: "image/png" },
     ],
     apple: [{ url: "/brand/talklov-app-icon-180.png", sizes: "180x180", type: "image/png" }],
+  },
+  openGraph: {
+    type: "website",
+    locale: "zh_CN",
+    alternateLocale: ["en_US"],
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: seoCopy.zh.defaultTitle,
+    description: seoCopy.zh.defaultDescription,
+    images: [
+      {
+        url: "/brand/og-default.png",
+        width: 1200,
+        height: 675,
+        alt: SITE_NAME,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: seoCopy.zh.defaultTitle,
+    description: seoCopy.zh.defaultDescription,
+    images: ["/brand/og-default.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 

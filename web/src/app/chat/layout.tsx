@@ -1,3 +1,11 @@
+import type { Metadata } from "next";
+import { noIndexMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  ...noIndexMetadata,
+  title: { absolute: "聊天 · TalkLov" },
+};
+
 export default function ChatLayout({
   children,
 }: {
