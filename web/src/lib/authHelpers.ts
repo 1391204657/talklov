@@ -39,6 +39,15 @@ export function friendlyAuthError(
   if (/email.*not.*confirm|confirm.*email/i.test(lower)) {
     return zh ? "请先确认邮箱后再登录" : "Please confirm your email first.";
   }
+  if (
+    /invalid login credentials|invalid.*password|wrong password|email.*password/i.test(
+      lower
+    )
+  ) {
+    return zh
+      ? "邮箱或密码不正确。若你平时用验证码登录，请改用验证码。"
+      : "Wrong email or password. If you usually use a code, switch to email code.";
+  }
   if (/magic link|sending|smtp|error sending/i.test(lower)) {
     return zh
       ? "邮件发送失败。请检查邮箱地址后重试，或稍后再试。"

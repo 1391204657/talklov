@@ -73,7 +73,12 @@ export const appCopy = {
     continuePhone: "手机短信登录",
     continuePhoneBackup: "手机短信（备用 · 即将开通）",
     emailPlaceholder: "邮箱地址",
+    passwordPlaceholder: "密码",
     getEmailCode: "发送邮箱验证码",
+    passwordSignIn: "密码登录",
+    usePasswordLogin: "使用密码登录",
+    useEmailCode: "改用验证码登录",
+    signingIn: "登录中…",
     cnSmsBackupHint:
       "手机短信备用通道即将开通。目前请使用邮箱验证码或 Apple 登录。",
     usSmsPendingHint:
@@ -171,7 +176,12 @@ export const appCopy = {
     continuePhone: "Phone SMS",
     continuePhoneBackup: "Phone SMS (backup · coming soon)",
     emailPlaceholder: "Email address",
+    passwordPlaceholder: "Password",
     getEmailCode: "Send email code",
+    passwordSignIn: "Sign in with password",
+    usePasswordLogin: "Use password instead",
+    useEmailCode: "Use email code instead",
+    signingIn: "Signing in…",
     cnSmsBackupHint:
       "SMS backup is coming soon. For now, please use email code or Apple.",
     usSmsPendingHint:

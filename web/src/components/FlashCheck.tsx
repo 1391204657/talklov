@@ -8,6 +8,7 @@ import {
   livenessDisplayText,
   localizeVerifyError,
 } from "@/lib/flashCheck";
+import { flashCheckTheme } from "@/lib/flashCheckTheme";
 
 type Creds = {
   accessKeyId: string;
@@ -297,7 +298,7 @@ export default function FlashCheck({
   }
 
   return (
-    <div className="flex h-[min(92dvh,820px)] flex-col bg-background">
+    <div className="flash-check flex h-[min(92dvh,820px)] flex-col bg-background">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold">
@@ -314,8 +315,8 @@ export default function FlashCheck({
         </button>
       </div>
       {/* No overflow-hidden here — Amplify hints use fixed/absolute overlays */}
-      <div className="relative min-h-0 flex-1 overflow-visible bg-black">
-        <ThemeProvider>
+      <div className="relative min-h-0 flex-1 overflow-visible bg-[#0c0d12]">
+        <ThemeProvider theme={flashCheckTheme} colorMode="dark">
           <Detector
             sessionId={sessionId}
             region={region}

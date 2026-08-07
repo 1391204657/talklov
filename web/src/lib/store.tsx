@@ -102,12 +102,12 @@ interface AppState {
   updateMyProfile: (p: Partial<MyProfile>) => void;
   /** Refresh trust tier from DB after admin approval (no client self-verify). */
   refreshTrustTier: () => Promise<void>;
-  /** Password email auth (legacy); prefer OTP / OAuth. */
+  /** Password email sign-in (legacy accounts); prefer OTP / OAuth for new users. */
   emailAuth: (
     mode: "signin" | "signup",
     email: string,
     password: string
-  ) => Promise<{ ok: boolean; error?: string }>;
+  ) => Promise<{ ok: boolean; error?: string; needProfile?: boolean }>;
   signInWithOAuth: (
     provider: OAuthProvider
   ) => Promise<{ ok: boolean; error?: string }>;
@@ -593,19 +593,71 @@ export function AppProvider({ children }: { children: ReactNode }) {
     mode: "signin" | "signup",
     email: string,
     password: string
-  ): Promise<{ ok: boolean; error?: string }> => {
+  ): Promise<{ ok: boolean; error?: string; needProfile?: boolean }> => {
+    const trimmed = email.trim().toLowerCase();
+    if (!isValidEmail(trimmed)) {
+      return {
+        ok: false,
+        error: locale === "en" ? "Enter a valid email" : "请输入正确的邮箱",
+      };
+    }
+    if (!password || password.length < 6) {
+      return {
+        ok: false,
+        error:
+          locale === "en"
+            ? "Enter your password (at least 6 characters)"
+            : "请输入密码（至少 6 位）",
+      };
+    }
     const sb = getSupabaseBrowser();
-    if (!sb) return { ok: false, error: "后端未配置" };
+    if (!sb) return { ok: false, error: locale === "en" ? "Backend not configured" : "后端未配置" };
     const { data, error } =
       mode === "signup"
-        ? await sb.auth.signUp({ email, password })
-        : await sb.auth.signInWithPassword({ email, password });
-    if (error) return { ok: false, error: error.message };
-    if (data.user) {
-      setUserId(data.user.id);
-      setAuthEmail(data.user.email ?? email);
+        ? await sb.auth.signUp({ email: trimmed, password })
+        : await sb.auth.signInWithPassword({ email: trimmed, password });
+    if (error) {
+      return { ok: false, error: friendlyAuthError(error.message, locale) };
     }
-    return { ok: true };
+    const uid = data.user?.id;
+    if (!uid) {
+      return {
+        ok: false,
+        error:
+          locale === "en"
+            ? "Check your email to confirm the account"
+            : "请查收邮件确认账号后再登录",
+      };
+    }
+    setUserId(uid);
+    setAuthEmail(data.user?.email ?? trimmed);
+    setTier("light");
+
+    let needProfile = true;
+    try {
+      const raw = await fetchDbProfile(uid);
+      if (raw) {
+        const fromDb = dbToMyPartial(raw);
+        const prev = myProfileRef.current;
+        const name =
+          (fromDb.name || "").trim() || (prev.name || "").trim() || "";
+        const age = fromDb.age ?? prev.age;
+        setMyProfile({ ...prev, ...fromDb, name, age });
+        setTier(raw.verified ? "verified" : "light");
+        needProfile = profileNeedsBasics(name, age);
+        if (needProfile === false && profileNeedsBasics(raw.name, raw.age)) {
+          void persistProfile(uid, { ...prev, ...fromDb, name, age });
+        }
+      } else if (
+        !profileNeedsBasics(myProfileRef.current.name, myProfileRef.current.age)
+      ) {
+        needProfile = false;
+        void persistProfile(uid, myProfileRef.current);
+      }
+    } catch {
+      /* new user */
+    }
+    return { ok: true, needProfile };
   };
 
   const signInWithOAuth = async (

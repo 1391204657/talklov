@@ -191,3 +191,44 @@ body {
 .animate-modalIn {
   animation: modalIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+
+/* TalkLov skin for AWS Face Liveness (overrides Amplify teal/green CTA) */
+.flash-check {
+  --amplify-colors-primary-10: rgba(232, 137, 176, 0.12);
+  --amplify-colors-primary-20: rgba(232, 137, 176, 0.22);
+  --amplify-colors-primary-40: #e889b0;
+  --amplify-colors-primary-60: #d9769c;
+  --amplify-colors-primary-80: #c96a9a;
+  --amplify-colors-primary-90: #b39af5;
+  --amplify-colors-primary-100: #8f7de8;
+  --amplify-colors-font-interactive: #c96a9a;
+  --amplify-components-button-primary-background-color: transparent;
+  --amplify-components-button-primary-border-color: transparent;
+  --amplify-components-button-primary-color: #fff;
+  --amplify-components-button-border-radius: 0.75rem;
+}
+
+.flash-check .amplify-button--primary {
+  background: var(--accent-grad) !important;
+  border: none !important;
+  color: #fff !important;
+  box-shadow: 0 8px 24px rgba(200, 140, 200, 0.28);
+  font-weight: 600;
+  min-height: 3rem;
+}
+
+.flash-check .amplify-button--primary:hover,
+.flash-check .amplify-button--primary:focus,
+.flash-check .amplify-button--primary:active {
+  background: var(--accent-grad) !important;
+  filter: brightness(1.04);
+}
+
+.flash-check .amplify-liveness-camera-module {
+  background: #0c0d12 !important;
+}
+
+.flash-check .amplify-liveness-start-screen-header,
+.flash-check .amplify-liveness-instruction-list {
+  color: var(--foreground);
+}

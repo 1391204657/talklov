@@ -236,6 +236,7 @@ function RegisterModal() {
     signInWithOAuth,
     sendEmailOtp,
     verifyEmailOtp,
+    emailAuth,
     setLocale,
     setRegion,
     locale,
@@ -251,6 +252,8 @@ function RegisterModal() {
   const [national, setNational] = useState("");
   const [e164, setE164] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailAuthMode, setEmailAuthMode] = useState<"otp" | "password">("otp");
   const [otp, setOtp] = useState("");
   const [isNewPhone, setIsNewPhone] = useState(true);
   const [authBusy, setAuthBusy] = useState(false);
@@ -267,6 +270,8 @@ function RegisterModal() {
       setStep(0);
       setNational("");
       setEmail("");
+      setPassword("");
+      setEmailAuthMode("otp");
       setOtp("");
       setAuthErr(null);
       setAgreedLegal(false);
@@ -396,6 +401,107 @@ function RegisterModal() {
     setCooldown(60);
     setOtp("");
   };
+
+  const signInWithPassword = async () => {
+    if (!requireLegal()) return;
+    setAuthErr(null);
+    setAuthBusy(true);
+    const res = await emailAuth("signin", email, password);
+    setAuthBusy(false);
+    if (!res.ok) {
+      setAuthErr(res.error ?? (locale === "en" ? "Sign-in failed" : "登录失败"));
+      return;
+    }
+    if (!draft.basicsLocked) {
+      setDraft((d) => ({
+        ...d,
+        country: authRegion === "CN" ? "CN" : d.country || "US",
+        nativeLang: authRegion === "CN" ? "中文" : d.nativeLang || "English",
+        learningLang: authRegion === "CN" ? "English" : d.learningLang || "中文",
+      }));
+    }
+    if (res.needProfile) {
+      setStep(2);
+    } else {
+      closeModals();
+    }
+  };
+
+  const emailAuthFields = (
+    <div className="space-y-2">
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder={copy.emailPlaceholder}
+        autoComplete="email"
+        onKeyDown={(e) => {
+          if (e.key !== "Enter" || !email.trim()) return;
+          if (emailAuthMode === "password" && password) void signInWithPassword();
+          else if (emailAuthMode === "otp") void sendEmailCode();
+        }}
+        className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
+      />
+      {emailAuthMode === "password" ? (
+        <>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={copy.passwordPlaceholder}
+            autoComplete="current-password"
+            onKeyDown={(e) =>
+              e.key === "Enter" &&
+              email.trim() &&
+              password &&
+              void signInWithPassword()
+            }
+            className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
+          />
+          <button
+            type="button"
+            disabled={authBusy || !email.trim() || !password || !agreedLegal}
+            onClick={() => void signInWithPassword()}
+            className="btn-grad w-full rounded-xl py-3.5 font-semibold disabled:opacity-40"
+          >
+            {authBusy ? copy.signingIn : copy.passwordSignIn}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEmailAuthMode("otp");
+              setPassword("");
+              setAuthErr(null);
+            }}
+            className="w-full py-1 text-center text-sm text-muted"
+          >
+            {copy.useEmailCode}
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            disabled={authBusy || !email.trim() || !agreedLegal}
+            onClick={() => void sendEmailCode()}
+            className="w-full rounded-xl bg-[#1c1c1f] py-3.5 font-semibold text-white disabled:opacity-40"
+          >
+            {authBusy ? copy.sending : copy.getEmailCode}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEmailAuthMode("password");
+              setAuthErr(null);
+            }}
+            className="w-full py-1 text-center text-sm text-muted"
+          >
+            {copy.usePasswordLogin}
+          </button>
+        </>
+      )}
+    </div>
+  );
 
   const verifyCode = async (codeOverride?: string) => {
     const code = (codeOverride ?? otp).replace(/\D/g, "");
@@ -700,27 +806,7 @@ function RegisterModal() {
                     {copy.continueEmail}
                   </button>
                 ) : (
-                  <div className="space-y-2">
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder={copy.emailPlaceholder}
-                      autoComplete="email"
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && email.trim() && sendEmailCode()
-                      }
-                      className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
-                    />
-                    <button
-                      type="button"
-                      disabled={authBusy || !email.trim() || !agreedLegal}
-                      onClick={() => void sendEmailCode()}
-                      className="w-full rounded-xl bg-[#1c1c1f] py-3.5 font-semibold text-white disabled:opacity-40"
-                    >
-                      {authBusy ? copy.sending : copy.getEmailCode}
-                    </button>
-                  </div>
+                  emailAuthFields
                 )}
                 <p className="text-center text-[11px] leading-relaxed text-muted">
                   {copy.cnSmsBackupHint}
@@ -743,27 +829,7 @@ function RegisterModal() {
                     {copy.continueEmail}
                   </button>
                 ) : (
-                  <div className="space-y-2">
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder={copy.emailPlaceholder}
-                      autoComplete="email"
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && email.trim() && sendEmailCode()
-                      }
-                      className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent"
-                    />
-                    <button
-                      type="button"
-                      disabled={authBusy || !email.trim() || !agreedLegal}
-                      onClick={() => void sendEmailCode()}
-                      className="w-full rounded-xl bg-[#1c1c1f] py-3.5 font-semibold text-white disabled:opacity-40"
-                    >
-                      {authBusy ? copy.sending : copy.getEmailCode}
-                    </button>
-                  </div>
+                  emailAuthFields
                 )}
                 <p className="text-center text-[11px] leading-relaxed text-muted">
                   {copy.usSmsPendingHint}
@@ -986,7 +1052,7 @@ function VerifyModal() {
   const title = t.full;
   const hint = en
     ? "A quick on-camera check to confirm you’re a real person. No government ID. You’ll get a verified badge."
-    : "对着镜头做几个小动作，确认是真人本人。不采集证件。通过后展示「✓ 已认证」徽章。";
+    : "对着镜头做几个小动作，确认是真人本人。不采集证件。通过后展示「已认证」徽章。";
   const pendingActionHint =
     pendingAction && !en
       ? `完成闪验后可继续：${pendingAction}`
@@ -1054,156 +1120,189 @@ function VerifyModal() {
     }
   };
 
-  return (
-    <Sheet onClose={closeModals}>
-      <>
-          <h3 className="text-xl font-bold">
-            {title} ✨
-          </h3>
-          <p className="mt-1 text-sm text-muted">{hint}</p>
-          {pendingActionHint && (
-            <p className="mt-2 rounded-xl bg-accent/10 px-3 py-2 text-sm text-accent">
-              {pendingActionHint}
-            </p>
-          )}
+  const startFlash = () => {
+    setErr(null);
+    setStatus(null);
+    setUseFlash(true);
+  };
 
-          {loadingStatus ? (
-            <p className="mt-4 text-sm text-muted">{en ? "Checking…" : "查询状态…"}</p>
-          ) : alreadyVerified ? (
-            <p className="mt-4 rounded-xl bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-200">
-              {en ? "Flash Check complete — you’re verified." : "闪验已通过，你已获得认证徽章。"}
-            </p>
-          ) : pending ? (
-            <div className="mt-4 space-y-3">
-              <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-100">
-                {en
-                  ? "A previous check is awaiting TalkLov staff review (when the score isn’t high enough for instant pass). You can run Flash Check again now for an instant AWS result."
-                  : "上次闪验还在等待 TalkLov 人工复核（分数不够自动通过时才会进人工）。你可以马上重新闪验，通常会由系统当场出结果。"}
-              </p>
-              {err && (
-                <p className="text-sm text-rose-600 dark:text-rose-300">{err}</p>
-              )}
-              {flashEnabled ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setErr(null);
-                    setStatus(null);
-                    setUseFlash(true);
-                  }}
-                  className="btn-grad w-full rounded-xl py-3 font-semibold"
-                >
-                  {en ? "Start Flash Check" : t.start}
-                </button>
-              ) : null}
-            </div>
-          ) : (
-            <>
-              <ul className="mt-4 space-y-2 text-sm">
-                <li className="flex items-center gap-2">
-                  <span>✨</span>
-                  {en
-                    ? "Flash Check: short motion selfie (not public)"
-                    : "闪验：几秒动态自拍（不公开展示）"}
-                </li>
-                <li className="flex items-center gap-2">
-                  <span>✅</span>
-                  {en ? "Verified badge after you pass" : "通过后获得认证徽章"}
-                </li>
-                <li className="flex items-center gap-2 text-muted">
-                  <span>🔒</span>
-                  {en ? "No government ID required" : "不采集证件实名"}
-                </li>
-              </ul>
-
-              {status === "rejected" && (
-                <p className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-200">
-                  {en ? "Previous Flash Check didn’t pass." : "上次闪验未通过。"}
-                  {adminNote ? ` ${adminNote}` : ""}
-                  {en ? " You can try again." : " 可重新尝试。"}
-                </p>
-              )}
-
-              {err && (
-                <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{err}</p>
-              )}
-
-              {flashEnabled ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setErr(null);
-                    setUseFlash(true);
-                  }}
-                  className="btn-grad mt-4 w-full rounded-xl py-3 font-semibold"
-                >
-                  {en ? "Start Flash Check" : t.start}
-                </button>
-              ) : (
-                <>
-                  <p className="mt-3 text-xs text-muted">
-                    {en
-                      ? "Flash Check service offline — use secure selfie upload."
-                      : "闪验服务未开通时，可走安全自拍通道。"}
-                  </p>
-                  <label className="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-black/15 bg-black/[0.03] px-4 py-6 text-sm dark:border-white/15 dark:bg-white/[0.04]">
-                    <span className="font-medium">
-                      {preview
-                        ? en
-                          ? "Tap to retake"
-                          : "点击重拍"
-                        : en
-                          ? "Take / upload selfie"
-                          : "拍摄或上传自拍"}
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="user"
-                      className="hidden"
-                      onChange={(e) => void onPick(e.target.files?.[0] ?? null)}
-                    />
-                  </label>
-                  {preview && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={preview}
-                      alt="selfie preview"
-                      className="mt-3 max-h-56 w-full rounded-xl object-contain bg-black/5"
-                    />
-                  )}
-                  <button
-                    type="button"
-                    disabled={!preview || busy}
-                    onClick={() => void onSubmit()}
-                    className="btn-grad mt-4 w-full rounded-xl py-3 font-semibold disabled:opacity-40"
-                  >
-                    {busy
-                      ? en
-                        ? "Submitting…"
-                        : "提交中…"
-                      : en
-                        ? "Submit for review"
-                        : "提交审核"}
-                  </button>
-                </>
-              )}
-            </>
-          )}
-
+  const verifyFooter =
+    loadingStatus || alreadyVerified ? (
+      <button
+        type="button"
+        onClick={closeModals}
+        className="w-full rounded-xl py-2.5 text-sm text-muted"
+      >
+        {en ? "Close" : "关闭"}
+      </button>
+    ) : flashEnabled ? (
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={startFlash}
+          className="btn-grad w-full rounded-xl py-3.5 text-base font-semibold shadow-[0_10px_28px_rgba(200,120,180,0.35)]"
+        >
+          {pending ? (en ? "Try Flash Check again" : t.again) : t.start}
+        </button>
+        <button
+          type="button"
+          onClick={closeModals}
+          className="w-full py-1.5 text-center text-sm text-muted"
+        >
+          {en ? "Later" : "稍后再说"}
+        </button>
+      </div>
+    ) : (
+      <div className="space-y-2">
+        {preview ? (
           <button
             type="button"
-            onClick={closeModals}
-            className="mt-2 w-full rounded-xl py-2 text-sm text-muted"
+            disabled={busy}
+            onClick={() => void onSubmit()}
+            className="btn-grad w-full rounded-xl py-3.5 font-semibold disabled:opacity-40"
           >
-            {alreadyVerified || pending
+            {busy
               ? en
-                ? "Close"
-                : "关闭"
+                ? "Submitting…"
+                : "提交中…"
               : en
-                ? "Later"
-                : "稍后再说"}
+                ? "Submit for review"
+                : "提交审核"}
           </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={closeModals}
+          className="w-full py-1.5 text-center text-sm text-muted"
+        >
+          {en ? "Later" : "稍后再说"}
+        </button>
+      </div>
+    );
+
+  return (
+    <Sheet onClose={closeModals} footer={verifyFooter}>
+      <>
+        <h3 className="text-xl font-bold tracking-tight">{title}</h3>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted">{hint}</p>
+        {pendingActionHint && (
+          <p className="mt-3 rounded-xl bg-accent/10 px-3 py-2 text-sm text-accent">
+            {pendingActionHint}
+          </p>
+        )}
+
+        {loadingStatus ? (
+          <p className="mt-6 text-sm text-muted">
+            {en ? "Checking…" : "查询状态…"}
+          </p>
+        ) : alreadyVerified ? (
+          <p className="mt-6 rounded-xl bg-accent/10 px-3 py-3 text-sm text-foreground">
+            {en
+              ? "Flash Check complete — you’re verified."
+              : "闪验已通过，你已获得认证徽章。"}
+          </p>
+        ) : pending ? (
+          <div className="mt-5 space-y-3">
+            <p className="rounded-xl bg-amber-500/10 px-3 py-2.5 text-sm text-amber-800 dark:text-amber-100">
+              {en
+                ? "A previous check is awaiting TalkLov staff review. You can run Flash Check again for an instant result."
+                : "上次闪验还在等待人工复核。你可以马上重新闪验，通常会由系统当场出结果。"}
+            </p>
+            {err && (
+              <p className="text-sm text-rose-600 dark:text-rose-300">{err}</p>
+            )}
+          </div>
+        ) : (
+          <>
+            <ul className="mt-6 space-y-3 text-sm">
+              <li className="flex items-start gap-3">
+                <span
+                  className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[11px] font-bold text-accent"
+                  aria-hidden
+                >
+                  1
+                </span>
+                <span>
+                  {en
+                    ? "Short motion selfie — never shown publicly"
+                    : "几秒动态自拍，不公开展示"}
+                </span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span
+                  className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-[11px] font-bold text-accent"
+                  aria-hidden
+                >
+                  2
+                </span>
+                <span>
+                  {en ? "Verified badge after you pass" : "通过后获得认证徽章"}
+                </span>
+              </li>
+              <li className="flex items-start gap-3 text-muted">
+                <span
+                  className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[11px] font-bold"
+                  aria-hidden
+                >
+                  3
+                </span>
+                <span>
+                  {en ? "No government ID required" : "不采集证件实名"}
+                </span>
+              </li>
+            </ul>
+
+            {status === "rejected" && (
+              <p className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-200">
+                {en ? "Previous Flash Check didn’t pass." : "上次闪验未通过。"}
+                {adminNote ? ` ${adminNote}` : ""}
+                {en ? " You can try again." : " 可重新尝试。"}
+              </p>
+            )}
+
+            {err && (
+              <p className="mt-3 text-sm text-rose-600 dark:text-rose-300">
+                {err}
+              </p>
+            )}
+
+            {!flashEnabled && (
+              <>
+                <p className="mt-4 text-xs text-muted">
+                  {en
+                    ? "Flash Check service offline — use secure selfie upload."
+                    : "闪验服务未开通时，可走安全自拍通道。"}
+                </p>
+                <label className="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-black/15 bg-black/[0.03] px-4 py-6 text-sm dark:border-white/15 dark:bg-white/[0.04]">
+                  <span className="font-medium">
+                    {preview
+                      ? en
+                        ? "Tap to retake"
+                        : "点击重拍"
+                      : en
+                        ? "Take / upload selfie"
+                        : "拍摄或上传自拍"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="user"
+                    className="hidden"
+                    onChange={(e) => void onPick(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                {preview && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={preview}
+                    alt="selfie preview"
+                    className="mt-3 max-h-56 w-full rounded-xl object-contain bg-black/5"
+                  />
+                )}
+              </>
+            )}
+          </>
+        )}
       </>
     </Sheet>
   );
