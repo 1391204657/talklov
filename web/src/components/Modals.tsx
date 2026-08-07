@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { usePathname, useRouter } from "next/navigation";
 import { useApp } from "@/lib/store";
 import { defaultMyProfile, type MyProfile } from "@/lib/profile";
 import {
@@ -239,7 +240,9 @@ function RegisterModal() {
     setRegion,
     locale,
     region,
+    userId,
   } = useApp();
+  const router = useRouter();
   const copy = tApp(locale);
   const [step, setStep] = useState(0); // 0 methods, 1 otp, 2 basics, 3 about, 4 photos
   const [authChannel, setAuthChannel] = useState<"phone" | "email">("phone");
@@ -450,12 +453,22 @@ function RegisterModal() {
     }
   };
 
-  const finish = (goVerify: boolean) => {
-    completeRegister({ ...draft, phoneE164: e164 || draft.phoneE164, basicsLocked: true });
-    if (goVerify)
+  const finish = (goVerify: boolean, previewHome = false) => {
+    completeRegister({
+      ...draft,
+      phoneE164: e164 || draft.phoneE164,
+      basicsLocked: true,
+    });
+    if (goVerify) {
       openVerify(
         locale === "en" ? "showing a verified badge" : "展示已验证标签"
       );
+      return;
+    }
+    if (previewHome) {
+      const id = userId || "me";
+      router.push(`/profile/${id}`);
+    }
   };
 
   const canBasics =
@@ -477,20 +490,38 @@ function RegisterModal() {
         {locale === "en" ? "Next →" : "下一步 →"}
       </button>
     ) : !legalView && step === 3 ? (
-      <div className="flex gap-2">
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setStep(2)}
+            className="flex-1 rounded-xl border border-line py-3 text-sm"
+          >
+            {locale === "en" ? "Back" : "上一步"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setStep(4)}
+            className="btn-grad flex-[2] rounded-xl py-3 font-semibold"
+          >
+            {locale === "en" ? "Add photos →" : "去添加照片 →"}
+          </button>
+        </div>
         <button
           type="button"
-          onClick={() => setStep(2)}
-          className="flex-1 rounded-xl border border-line py-3 text-sm"
+          onClick={() => finish(false, true)}
+          className="w-full rounded-xl border border-line py-2.5 text-sm font-medium"
         >
-          {locale === "en" ? "Back" : "上一步"}
+          {locale === "en"
+            ? "Finish & preview profile"
+            : "完成并预览我的主页"}
         </button>
         <button
           type="button"
-          onClick={() => setStep(4)}
-          className="btn-grad flex-[2] rounded-xl py-3 font-semibold"
+          onClick={() => finish(false, false)}
+          className="w-full py-1 text-center text-sm text-muted"
         >
-          {locale === "en" ? "Next →" : "下一步 →"}
+          {locale === "en" ? "Finish for now" : "先完成，稍后再补"}
         </button>
       </div>
     ) : !legalView && step === 4 ? (
@@ -506,12 +537,12 @@ function RegisterModal() {
         </button>
         <button
           disabled={draft.photos.length < 1}
-          onClick={() => finish(false)}
+          onClick={() => finish(false, true)}
           className="w-full rounded-xl border border-line py-2.5 text-sm text-muted disabled:opacity-40"
         >
           {locale === "en"
-            ? "Skip verification for now →"
-            : "稍后再认证，先去打招呼 →"}
+            ? "Save & preview profile"
+            : "保存并预览我的主页"}
         </button>
         <button
           type="button"
@@ -925,6 +956,29 @@ function VerifyModal() {
     void import("@/components/FlashCheck").then((m) => setFlashUI(() => m.default));
   }, [useFlash, FlashUI]);
 
+  const onFlashApproved = useCallback(async () => {
+    await refreshTrustTier();
+    setStatus("approved");
+    setUseFlash(false);
+  }, [refreshTrustTier]);
+
+  const onFlashPending = useCallback(() => {
+    setStatus("pending");
+    setUseFlash(false);
+  }, []);
+
+  const onFlashError = useCallback(
+    (message: string) => {
+      setErr(localizeVerifyError(message, en));
+      setUseFlash(false);
+    },
+    [en]
+  );
+
+  const onFlashCancel = useCallback(() => {
+    setUseFlash(false);
+  }, []);
+
   if (!verifyOpen) return null;
 
   const alreadyVerified = tier === "verified" || status === "approved";
@@ -939,6 +993,22 @@ function VerifyModal() {
       : pendingAction && en
         ? `After Flash Check you can continue: ${pendingAction}`
         : null;
+
+  // Full-screen portal so Amplify oval hints are not clipped by Sheet overflow/transform
+  if (useFlash && FlashUI && typeof document !== "undefined") {
+    return createPortal(
+      <div className="fixed inset-0 z-[80] bg-background">
+        <FlashUI
+          en={en}
+          onApproved={onFlashApproved}
+          onPending={onFlashPending}
+          onError={onFlashError}
+          onCancel={onFlashCancel}
+        />
+      </div>,
+      document.body
+    );
+  }
 
   const onPick = async (file: File | null) => {
     if (!file) return;
@@ -986,27 +1056,7 @@ function VerifyModal() {
 
   return (
     <Sheet onClose={closeModals}>
-      {/* When Flash UI is active, hide title/hint so Start fits above the fold */}
-      {useFlash && FlashUI ? (
-        <FlashUI
-          en={en}
-          onApproved={async () => {
-            await refreshTrustTier();
-            setStatus("approved");
-            setUseFlash(false);
-          }}
-          onPending={() => {
-            setStatus("pending");
-            setUseFlash(false);
-          }}
-          onError={(message) => {
-            setErr(localizeVerifyError(message, en));
-            setUseFlash(false);
-          }}
-          onCancel={() => setUseFlash(false)}
-        />
-      ) : (
-        <>
+      <>
           <h3 className="text-xl font-bold">
             {title} ✨
           </h3>
@@ -1154,8 +1204,7 @@ function VerifyModal() {
                 ? "Later"
                 : "稍后再说"}
           </button>
-        </>
-      )}
+      </>
     </Sheet>
   );
 }
