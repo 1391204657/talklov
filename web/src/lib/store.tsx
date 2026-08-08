@@ -473,13 +473,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Expose apply for resumeSession via ref
     applyUserRef.current = applyUser;
 
-    const finishOAuthLanding = (needProfile: boolean, event: string) => {
-      // Never open the consumer onboarding sheet on /admin (refresh was popping profile form).
-      const onAdmin =
-        typeof window !== "undefined" &&
-        window.location.pathname.startsWith("/admin");
-      // Only auto-open once per browser tab after a real sign-in — not on every refresh.
-      // A sticky full-screen sheet can block Discover clicks on some CN WebViews.
+    const finishOAuthLanding = (needProfile: boolean, _event: string) => {
+      // Never open the consumer onboarding sheet on /admin or marketing pages
+      // (homepage was popping the profile wizard on session hydrate).
+      const path =
+        typeof window !== "undefined" ? window.location.pathname : "";
+      const onAdmin = path.startsWith("/admin");
+      const onMarketing =
+        path === "/" ||
+        path.startsWith("/faq") ||
+        path.startsWith("/guides") ||
+        path.startsWith("/partners") ||
+        path.startsWith("/terms") ||
+        path.startsWith("/privacy");
+      // Only auto-open once per browser tab after a real OAuth/magic-link return.
+      // Do NOT treat session hydrate SIGNED_IN / USER_UPDATED as a fresh sign-in —
+      // that re-opens the wizard on every visit to talklov.com while profile is incomplete.
       let alreadyPrompted = false;
       try {
         alreadyPrompted =
@@ -487,15 +496,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } catch {
         /* ignore */
       }
-      const isFreshSignIn = event === "SIGNED_IN" || event === "USER_UPDATED";
       const authLanding =
         typeof window !== "undefined" &&
         new URLSearchParams(window.location.search).get("auth") === "1";
       if (
         needProfile &&
+        authLanding &&
         !onAdmin &&
+        !onMarketing &&
         !alreadyPrompted &&
-        (isFreshSignIn || authLanding) &&
         !registerOpenRef.current
       ) {
         try {
