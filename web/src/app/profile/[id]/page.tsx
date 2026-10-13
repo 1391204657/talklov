@@ -267,6 +267,7 @@ export default function ProfileDetail() {
             rounded="rounded-none"
             showWatermark={false}
             segments="bottom"
+            expandable
           />
           <button
             onClick={() => router.back()}

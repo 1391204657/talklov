@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Profile } from "@/lib/types";
 import { useApp } from "@/lib/store";
+import ImageLightbox from "@/components/ImageLightbox";
 
 interface Props {
   profile: Profile;
@@ -11,6 +12,8 @@ interface Props {
   showWatermark?: boolean;
   /** Allow left/right swipe between photos (default true). */
   swipeable?: boolean;
+  /** Tap the photo to open a full-screen viewer (profile page). */
+  expandable?: boolean;
   /** Where to place photo-count bars. Profile page uses bottom short bars. */
   segments?: "top" | "bottom";
 }
@@ -36,10 +39,12 @@ export default function ProfilePhoto({
   rounded = "rounded-2xl",
   showWatermark = true,
   swipeable = true,
+  expandable = false,
   segments = "top",
 }: Props) {
   const [err, setErr] = useState(false);
   const [idx, setIdx] = useState(0);
+  const [open, setOpen] = useState(false);
   const startX = useRef<number | null>(null);
   const moved = useRef(false);
   const visible = usePhotoVisible(profile.photoPrivacy);
@@ -76,6 +81,7 @@ export default function ProfilePhoto({
   };
 
   const onClickCapture = (e: React.MouseEvent) => {
+    if (expandable) return;
     // Tap left/right thirds to change photo (dating-app style), without navigating.
     if (!swipeable || count <= 1) return;
     if (moved.current) {
@@ -99,7 +105,9 @@ export default function ProfilePhoto({
 
   return (
     <div
-      className={`relative overflow-hidden touch-pan-y ${rounded} ${className}`}
+      className={`relative overflow-hidden touch-pan-y ${rounded} ${className} ${
+        expandable && visible && src ? "cursor-zoom-in" : ""
+      }`}
       style={{ background: gradient }}
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
@@ -107,6 +115,16 @@ export default function ProfilePhoto({
         startX.current = null;
       }}
       onClickCapture={onClickCapture}
+      onClick={(e) => {
+        if (!expandable || !visible || !src || err) return;
+        if (moved.current) {
+          moved.current = false;
+          return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(true);
+      }}
     >
       {!err && src ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -169,6 +187,18 @@ export default function ProfilePhoto({
               : "该用户设置：仅登录用户可看照片"}
           </span>
         </div>
+      )}
+      {open && visible && src && (
+        <ImageLightbox
+          src={src}
+          images={gallery}
+          index={Math.min(idx, count - 1)}
+          onIndex={(next) => {
+            setIdx(next);
+            setErr(false);
+          }}
+          onClose={() => setOpen(false)}
+        />
       )}
     </div>
   );

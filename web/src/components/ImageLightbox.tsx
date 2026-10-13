@@ -1,17 +1,32 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Props = {
   src: string;
+  images?: string[];
+  index?: number;
+  onIndex?: (next: number) => void;
   onClose: () => void;
 };
 
+const MIN_SCALE = 1;
+const MAX_SCALE = 4;
+
 /**
- * Full-screen image viewer. Scale starts at 1 = cover the screen;
- * pinch / wheel can zoom in, but not below full-screen cover.
+ * Full-screen photo. Scale 1 means the image is at least as wide as the screen.
+ * Pinch, wheel, or buttons can zoom in, but not narrower than the screen.
  */
-export default function ImageLightbox({ src, onClose }: Props) {
+export default function ImageLightbox({
+  src,
+  images,
+  index = 0,
+  onIndex,
+  onClose,
+}: Props) {
+  const gallery = images?.length ? images : [src];
+  const [i, setI] = useState(Math.min(index, gallery.length - 1));
   const [scale, setScale] = useState(1);
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
@@ -23,14 +38,14 @@ export default function ImageLightbox({ src, onClose }: Props) {
   const panStart = useRef<{ x: number; y: number; tx: number; ty: number } | null>(
     null
   );
+  const current = gallery[i] || src;
 
-  const clampScale = (s: number) => Math.min(4, Math.max(1, s));
+  const clampScale = (s: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
 
   const apply = useCallback((s: number, x: number, y: number) => {
     const next = clampScale(s);
-    // Reset pan when back to cover
-    const nx = next <= 1 ? 0 : x;
-    const ny = next <= 1 ? 0 : y;
+    const nx = next <= MIN_SCALE ? 0 : x;
+    const ny = next <= MIN_SCALE ? 0 : y;
     scaleRef.current = next;
     txRef.current = nx;
     tyRef.current = ny;
@@ -39,40 +54,82 @@ export default function ImageLightbox({ src, onClose }: Props) {
     setTy(ny);
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  const touchDist = (a: { clientX: number; clientY: number }, b: { clientX: number; clientY: number }) => {
-    const dx = a.clientX - b.clientX;
-    const dy = a.clientY - b.clientY;
-    return Math.hypot(dx, dy);
+  const go = (delta: number) => {
+    if (gallery.length <= 1) return;
+    const next = (i + delta + gallery.length) % gallery.length;
+    setI(next);
+    onIndex?.(next);
+    apply(1, 0, 0);
   };
 
-  return (
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") go(-1);
+      if (e.key === "ArrowRight") go(1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+    // go uses latest index; rebinding on i is enough
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose, i, gallery.length]);
+
+  const touchDist = (
+    a: { clientX: number; clientY: number },
+    b: { clientX: number; clientY: number }
+  ) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+
+  const node = (
     <div
-      className="fixed inset-0 z-[80] touch-none bg-black"
+      className="fixed inset-0 z-[90] bg-black"
       role="dialog"
       aria-modal
-      aria-label="查看图片"
+      aria-label="查看照片"
     >
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-lg text-white backdrop-blur"
-        aria-label="关闭"
-      >
-        ✕
-      </button>
+      <div className="absolute inset-x-0 top-[max(0.75rem,env(safe-area-inset-top))] z-10 flex items-center justify-between px-3">
+        <span className="text-xs text-white/70">
+          {gallery.length > 1 ? `${i + 1} / ${gallery.length}` : "照片"}
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-lg text-white backdrop-blur"
+          aria-label="关闭"
+        >
+          ✕
+        </button>
+      </div>
+
+      {gallery.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={() => go(-1)}
+            className="absolute left-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white"
+            aria-label="上一张"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            onClick={() => go(1)}
+            className="absolute right-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white"
+            aria-label="下一张"
+          >
+            ›
+          </button>
+        </>
+      )}
 
       <div
-        className="flex h-full w-full items-center justify-center overflow-hidden"
+        className="flex h-full w-full items-center justify-center overflow-hidden touch-none"
         onClick={(e) => {
-          if (e.target === e.currentTarget && scaleRef.current <= 1) onClose();
+          if (e.target === e.currentTarget && scaleRef.current <= MIN_SCALE) onClose();
         }}
         onWheel={(e) => {
           e.preventDefault();
@@ -99,7 +156,11 @@ export default function ImageLightbox({ src, onClose }: Props) {
             const d = touchDist(e.touches[0], e.touches[1]);
             const next = pinchStartScale.current * (d / pinchStartDist.current);
             apply(next, txRef.current, tyRef.current);
-          } else if (e.touches.length === 1 && panStart.current && scaleRef.current > 1) {
+          } else if (
+            e.touches.length === 1 &&
+            panStart.current &&
+            scaleRef.current > MIN_SCALE
+          ) {
             const dx = e.touches[0].clientX - panStart.current.x;
             const dy = e.touches[0].clientY - panStart.current.y;
             apply(
@@ -114,23 +175,47 @@ export default function ImageLightbox({ src, onClose }: Props) {
           panStart.current = null;
         }}
       >
+        {/* Width is locked to the viewport; scale never goes below 1. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={src}
+          src={current}
           alt=""
           draggable={false}
-          className="h-full w-full select-none object-cover"
+          className="max-w-none select-none"
           style={{
+            width: "100vw",
+            minWidth: "100vw",
+            height: "auto",
             transform: `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`,
             transformOrigin: "center center",
-            transition: pinchStartDist.current ? "none" : undefined,
           }}
         />
       </div>
 
-      <p className="pointer-events-none absolute inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] text-center text-xs text-white/60">
-        双指缩放 · 最小满屏
-      </p>
+      <div className="absolute inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 flex items-center justify-center gap-3">
+        <button
+          type="button"
+          onClick={() => apply(scaleRef.current / 1.25, txRef.current, tyRef.current)}
+          disabled={scale <= MIN_SCALE}
+          className="h-10 w-10 rounded-full bg-white/15 text-lg text-white disabled:opacity-40"
+          aria-label="缩小"
+        >
+          −
+        </button>
+        <p className="text-xs text-white/70">双指或滚轮缩放 · 最小为屏幕宽度</p>
+        <button
+          type="button"
+          onClick={() => apply(scaleRef.current * 1.25, txRef.current, tyRef.current)}
+          disabled={scale >= MAX_SCALE}
+          className="h-10 w-10 rounded-full bg-white/15 text-lg text-white disabled:opacity-40"
+          aria-label="放大"
+        >
+          +
+        </button>
+      </div>
     </div>
   );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(node, document.body);
 }
