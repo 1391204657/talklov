@@ -167,6 +167,7 @@ export const INTEREST_SUGGESTIONS = [
   "咖啡",
   "电影",
   "音乐",
+  "舞蹈",
   "健身",
   "美食",
   "摄影",
