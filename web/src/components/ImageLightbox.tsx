@@ -35,10 +35,29 @@ export default function ImageLightbox({
   const tyRef = useRef(0);
   const pinchStartDist = useRef(0);
   const pinchStartScale = useRef(1);
-  const panStart = useRef<{ x: number; y: number; tx: number; ty: number } | null>(
-    null
-  );
+  const panStart = useRef<{
+    x: number;
+    y: number;
+    tx: number;
+    ty: number;
+    over: number;
+  } | null>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const suppressClick = useRef(false);
+  const [dragX, setDragX] = useState(0);
   const current = gallery[i] || src;
+
+  const panLimits = () => {
+    const s = scaleRef.current;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const w = (imgRef.current?.offsetWidth || vw) * s;
+    const h = (imgRef.current?.offsetHeight || vh) * s;
+    return {
+      maxX: Math.max(0, (w - vw) / 2),
+      maxY: Math.max(0, (h - vh) / 2),
+    };
+  };
 
   const clampScale = (s: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
 
@@ -137,6 +156,10 @@ export default function ImageLightbox({
         className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden touch-none"
         onClick={(e) => {
           e.stopPropagation();
+          if (suppressClick.current) {
+            suppressClick.current = false;
+            return;
+          }
           if (scaleRef.current <= MIN_SCALE && !(e.target as HTMLElement).closest("button")) {
             onClose();
           }
@@ -146,48 +169,95 @@ export default function ImageLightbox({
           const next = clampScale(scaleRef.current * (e.deltaY < 0 ? 1.08 : 0.92));
           apply(next, txRef.current, tyRef.current);
         }}
+        onPointerDown={(e) => {
+          if (e.button !== 0 || pinchStartDist.current > 0) return;
+          panStart.current = {
+            x: e.clientX,
+            y: e.clientY,
+            tx: txRef.current,
+            ty: tyRef.current,
+            over: 0,
+          };
+          try {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+          } catch {
+            /* pointer already released */
+          }
+        }}
+        onPointerMove={(e) => {
+          const start = panStart.current;
+          if (!start || pinchStartDist.current > 0) return;
+          const dx = e.clientX - start.x;
+          const dy = e.clientY - start.y;
+          if (scaleRef.current <= MIN_SCALE) {
+            start.over = dx;
+            setDragX(dx);
+            return;
+          }
+          const { maxX, maxY } = panLimits();
+          let nx = start.tx + dx;
+          let ny = start.ty + dy;
+          let over = 0;
+          if (nx > maxX) {
+            over = nx - maxX;
+            nx = maxX + over * 0.35;
+          } else if (nx < -maxX) {
+            over = nx + maxX;
+            nx = -maxX + over * 0.35;
+          }
+          ny = Math.min(maxY, Math.max(-maxY, ny));
+          start.over = over;
+          apply(scaleRef.current, nx, ny);
+        }}
+        onPointerUp={(e) => {
+          const start = panStart.current;
+          panStart.current = null;
+          setDragX(0);
+          if (!start || pinchStartDist.current > 0) return;
+          const dx = e.clientX - start.x;
+          const dy = e.clientY - start.y;
+          if (Math.abs(dx) > 8 || Math.abs(dy) > 8) suppressClick.current = true;
+          const horizontal = Math.abs(dx) > 64 && Math.abs(dx) > Math.abs(dy);
+          const atEdge = scaleRef.current <= MIN_SCALE || Math.abs(start.over) > 48;
+          if (gallery.length > 1 && horizontal && atEdge) {
+            go(dx < 0 ? 1 : -1);
+            return;
+          }
+          const { maxX, maxY } = panLimits();
+          apply(
+            scaleRef.current,
+            Math.min(maxX, Math.max(-maxX, txRef.current)),
+            Math.min(maxY, Math.max(-maxY, tyRef.current))
+          );
+        }}
+        onPointerCancel={() => {
+          panStart.current = null;
+          setDragX(0);
+        }}
         onTouchStart={(e) => {
           if (e.touches.length === 2) {
             pinchStartDist.current = touchDist(e.touches[0], e.touches[1]);
             pinchStartScale.current = scaleRef.current;
             panStart.current = null;
-          } else if (e.touches.length === 1) {
-            panStart.current = {
-              x: e.touches[0].clientX,
-              y: e.touches[0].clientY,
-              tx: txRef.current,
-              ty: tyRef.current,
-            };
+            setDragX(0);
           }
         }}
         onTouchMove={(e) => {
-          e.preventDefault();
           if (e.touches.length === 2 && pinchStartDist.current > 0) {
+            e.preventDefault();
             const d = touchDist(e.touches[0], e.touches[1]);
             const next = pinchStartScale.current * (d / pinchStartDist.current);
             apply(next, txRef.current, tyRef.current);
-          } else if (
-            e.touches.length === 1 &&
-            panStart.current &&
-            scaleRef.current > MIN_SCALE
-          ) {
-            const dx = e.touches[0].clientX - panStart.current.x;
-            const dy = e.touches[0].clientY - panStart.current.y;
-            apply(
-              scaleRef.current,
-              panStart.current.tx + dx,
-              panStart.current.ty + dy
-            );
           }
         }}
         onTouchEnd={() => {
           pinchStartDist.current = 0;
-          panStart.current = null;
         }}
       >
         {/* Width is locked to the viewport; scale never goes below 1. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
+          ref={imgRef}
           src={current}
           alt=""
           draggable={false}
@@ -196,7 +266,7 @@ export default function ImageLightbox({
             width: "100vw",
             minWidth: "100vw",
             height: "auto",
-            transform: `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`,
+            transform: `translate3d(${tx + dragX}px, ${ty}px, 0) scale(${scale})`,
             transformOrigin: "center center",
           }}
         />
@@ -212,7 +282,10 @@ export default function ImageLightbox({
         >
           −
         </button>
-        <p className="text-xs text-white/70">双指或滚轮缩放 · 最小为屏幕宽度</p>
+        <p className="text-xs text-white/70">
+          {gallery.length > 1 ? "左右滑动切换 · " : ""}
+          双指或滚轮缩放 · 最小为屏幕宽度
+        </p>
         <button
           type="button"
           onClick={() => apply(scaleRef.current * 1.25, txRef.current, tyRef.current)}
