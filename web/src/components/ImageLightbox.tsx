@@ -84,21 +84,28 @@ export default function ImageLightbox({
     b: { clientX: number; clientY: number }
   ) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+
   const node = (
     <div
-      className="fixed inset-0 z-[90] bg-black"
+      className="fixed inset-0 z-[100] bg-black"
       role="dialog"
       aria-modal
       aria-label="查看照片"
+      onClick={stop}
+      onPointerDown={stop}
     >
-      <div className="absolute inset-x-0 top-[max(0.75rem,env(safe-area-inset-top))] z-10 flex items-center justify-between px-3">
+      <div className="absolute inset-x-0 top-[max(0.75rem,env(safe-area-inset-top))] z-20 flex items-center justify-between px-3">
         <span className="text-xs text-white/70">
           {gallery.length > 1 ? `${i + 1} / ${gallery.length}` : "照片"}
         </span>
         <button
           type="button"
-          onClick={onClose}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-lg text-white backdrop-blur"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-white/20 text-lg text-white backdrop-blur"
           aria-label="关闭"
         >
           ✕
@@ -110,7 +117,7 @@ export default function ImageLightbox({
           <button
             type="button"
             onClick={() => go(-1)}
-            className="absolute left-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white"
+            className="absolute left-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white"
             aria-label="上一张"
           >
             ‹
@@ -118,7 +125,7 @@ export default function ImageLightbox({
           <button
             type="button"
             onClick={() => go(1)}
-            className="absolute right-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white"
+            className="absolute right-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white"
             aria-label="下一张"
           >
             ›
@@ -127,9 +134,12 @@ export default function ImageLightbox({
       )}
 
       <div
-        className="flex h-full w-full items-center justify-center overflow-hidden touch-none"
+        className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden touch-none"
         onClick={(e) => {
-          if (e.target === e.currentTarget && scaleRef.current <= MIN_SCALE) onClose();
+          e.stopPropagation();
+          if (scaleRef.current <= MIN_SCALE && !(e.target as HTMLElement).closest("button")) {
+            onClose();
+          }
         }}
         onWheel={(e) => {
           e.preventDefault();
@@ -192,7 +202,7 @@ export default function ImageLightbox({
         />
       </div>
 
-      <div className="absolute inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 flex items-center justify-center gap-3">
+      <div className="absolute inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 flex items-center justify-center gap-3">
         <button
           type="button"
           onClick={() => apply(scaleRef.current / 1.25, txRef.current, tyRef.current)}

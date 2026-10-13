@@ -116,7 +116,9 @@ export default function ProfilePhoto({
       }}
       onClickCapture={onClickCapture}
       onClick={(e) => {
-        if (!expandable || !visible || !src || err) return;
+        if (!expandable || !visible || !src || err || open) return;
+        // Portal clicks bubble through React back to this photo; ignore them.
+        if (!(e.currentTarget as HTMLElement).contains(e.target as Node)) return;
         if (moved.current) {
           moved.current = false;
           return;
