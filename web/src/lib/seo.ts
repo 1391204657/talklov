@@ -64,6 +64,24 @@ export const seoCopy = {
         "了解 TalkLov 闪验是什么、为什么聊天前要认证、如何保护隐私，以及安全交友小提示。",
       path: "/guides/flash-check",
     },
+    guides: {
+      title: "指南 · TalkLov",
+      description:
+        "怎么找中英语伴、如何和美国人练口语，以及在 TalkLov 上开始语言交换的实用说明。",
+      path: "/guides",
+    },
+    guideFindPartner: {
+      title: "怎么找中英语伴 · TalkLov 指南",
+      description:
+        "想找中英语伴时，先确定练习目标，再看母语、水平与作息是否合拍，并用具体的第一句话开口。",
+      path: "/guides/find-language-partner",
+    },
+    guideSpokenEnglish: {
+      title: "和美国人练口语 · TalkLov 指南",
+      description:
+        "和美国母语者练口语：怎么约时间、怎么选话题、说错了怎么办，以及聊天时如何保持安全。",
+      path: "/guides/practice-spoken-english",
+    },
   },
   en: {
     defaultTitle: "TalkLov · US–China language partners & social",
@@ -115,6 +133,24 @@ export const seoCopy = {
       description:
         "What Flash Check is, why TalkLov asks before chat, privacy tips, and safer ways to meet language partners.",
       path: "/guides/flash-check",
+    },
+    guides: {
+      title: "Guides · TalkLov",
+      description:
+        "How to find a Chinese–English language partner, practice spoken English with Americans, and get started on TalkLov.",
+      path: "/guides",
+    },
+    guideFindPartner: {
+      title: "How to find a Chinese–English language partner · TalkLov",
+      description:
+        "Decide what you want to practice, then match on native language, level, and schedule — and send a specific first message.",
+      path: "/guides/find-language-partner",
+    },
+    guideSpokenEnglish: {
+      title: "Practice spoken English with Americans · TalkLov",
+      description:
+        "How to practice speaking with American native speakers: timing, topics, mistakes, and staying safe while you chat.",
+      path: "/guides/practice-spoken-english",
     },
   },
 } as const;

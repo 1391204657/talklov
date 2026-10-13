@@ -166,6 +166,33 @@ export default function MarketingHome() {
         </div>
       </section>
 
+      <section className="border-t border-line/50 py-16 sm:py-20">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <h2 className="text-center text-3xl font-bold tracking-tight">{t.guidesTitle}</h2>
+          <div className="mx-auto mt-8 grid max-w-3xl gap-4 sm:grid-cols-2">
+            <Link
+              href="/guides/find-language-partner"
+              className="rounded-3xl border border-line bg-surface/60 p-6 hover:bg-surface"
+            >
+              <div className="text-lg font-bold">{t.guideFindTitle}</div>
+              <p className="mt-2 text-sm leading-relaxed text-muted">{t.guideFindDesc}</p>
+            </Link>
+            <Link
+              href="/guides/practice-spoken-english"
+              className="rounded-3xl border border-line bg-surface/60 p-6 hover:bg-surface"
+            >
+              <div className="text-lg font-bold">{t.guideSpeakTitle}</div>
+              <p className="mt-2 text-sm leading-relaxed text-muted">{t.guideSpeakDesc}</p>
+            </Link>
+          </div>
+          <div className="mt-6 text-center">
+            <Link href="/guides" className="text-sm font-medium text-accent">
+              {t.guidesMore} →
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Download */}
       <section id="download" className="pb-20 pt-4">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">

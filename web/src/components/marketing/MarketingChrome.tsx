@@ -39,7 +39,7 @@ export function MarketingNav() {
           <a href="#how" className="hover:text-foreground">
             {t.howTitle}
           </a>
-          <Link href="/guides/language-exchange" className="hover:text-foreground">
+          <Link href="/guides" className="hover:text-foreground">
             {t.navGuides}
           </Link>
           <Link href="/partners" className="hover:text-foreground">
@@ -135,7 +135,7 @@ export function MarketingFooter() {
           </div>
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted">
-          <Link href="/guides/language-exchange" className="hover:text-foreground">
+          <Link href="/guides" className="hover:text-foreground">
             {t.navGuides}
           </Link>
           <Link href="/partners" className="hover:text-foreground">

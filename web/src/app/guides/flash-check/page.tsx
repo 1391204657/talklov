@@ -91,6 +91,10 @@ export default function FlashCheckGuidePage() {
           >
             语伴指南
           </Link>
+          <span className="mx-1">·</span>
+          <Link href="/guides/practice-spoken-english" className="font-medium text-accent">
+            练口语
+          </Link>
         </p>
       </article>
     </GuideChrome>

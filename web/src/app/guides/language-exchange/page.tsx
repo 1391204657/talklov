@@ -87,6 +87,10 @@ export default function LanguageExchangeGuidePage() {
           <Link href="/discover" className="ml-1 font-medium text-accent">
             打开发现
           </Link>
+          <span className="mx-1">·</span>
+          <Link href="/guides/find-language-partner" className="font-medium text-accent">
+            怎么找中英语伴
+          </Link>
         </p>
       </article>
     </GuideChrome>
