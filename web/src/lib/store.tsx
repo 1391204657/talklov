@@ -117,7 +117,12 @@ interface AppState {
     mode: "signin" | "signup",
     email: string,
     password: string
-  ) => Promise<{ ok: boolean; error?: string; needProfile?: boolean }>;
+  ) => Promise<{
+    ok: boolean;
+    error?: string;
+    needProfile?: boolean;
+    profileStep?: 2 | 4;
+  }>;
   signInWithOAuth: (
     provider: OAuthProvider
   ) => Promise<{ ok: boolean; error?: string }>;
@@ -127,7 +132,12 @@ interface AppState {
   verifyEmailOtp: (
     email: string,
     code: string
-  ) => Promise<{ ok: boolean; error?: string; needProfile?: boolean }>;
+  ) => Promise<{
+    ok: boolean;
+    error?: string;
+    needProfile?: boolean;
+    profileStep?: 2 | 4;
+  }>;
   /** Link / change email on an existing session (sends confirmation). */
   linkEmail: (email: string) => Promise<{ ok: boolean; error?: string }>;
   sendPhoneOtp: (
@@ -137,13 +147,27 @@ interface AppState {
   verifyPhoneOtp: (
     e164: string,
     code: string
-  ) => Promise<{ ok: boolean; error?: string; needProfile?: boolean }>;
+  ) => Promise<{
+    ok: boolean;
+    error?: string;
+    needProfile?: boolean;
+    profileStep?: 2 | 4;
+  }>;
   /** Soft logout: UI guest, keep session for one-tap resume on this device. */
   signOut: () => Promise<void>;
   /** Hard logout: revoke local session (still remembers last email for prefill). */
   signOutFull: () => Promise<void>;
   /** Resume soft-locked session without OTP/password. */
-  resumeSession: () => Promise<{ ok: boolean; error?: string; needProfile?: boolean }>;
+  resumeSession: () => Promise<{
+    ok: boolean;
+    error?: string;
+    needProfile?: boolean;
+    profileStep?: 2 | 4;
+  }>;
+  /** Open basics or photo step when signup is unfinished. */
+  openProfileGap: () => void;
+  /** True after the first session profile load (avoid prompting before photos arrive). */
+  profileSynced: boolean;
   setInstalled: (v: boolean) => void;
   setRegion: (r: "CN" | "global") => void;
   setPhotoPrivacy: (p: PhotoPrivacy) => void;
@@ -214,6 +238,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [isBanned, setIsBanned] = useState(false);
   const [banReason, setBanReason] = useState<string | null>(null);
+  const [profileSynced, setProfileSynced] = useState(!isSupabaseConfigured);
   const registerOpenRef = useRef(false);
   registerOpenRef.current = registerOpen;
   const myProfileRef = useRef(myProfile);
@@ -221,9 +246,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const applyUserRef = useRef<
     ((uid: string | null, email?: string | null) => Promise<boolean>) | null
   >(null);
+  const profileStepRef = useRef<2 | 4>(2);
 
   const profileNeedsBasics = (name?: string | null, age?: number | null) =>
     !(name && String(name).trim()) || age == null || age < 18;
+
+  const hasProfilePhoto = (photos?: string[] | null) =>
+    (photos || []).some((p) => typeof p === "string" && p.trim().length > 0);
+
+  /** 2 = basics, 4 = photo required, undefined = setup complete. */
+  const profileGap = (
+    name?: string | null,
+    age?: number | null,
+    photos?: string[] | null
+  ): { needProfile: boolean; profileStep?: 2 | 4 } => {
+    if (profileNeedsBasics(name, age)) return { needProfile: true, profileStep: 2 };
+    if (!hasProfilePhoto(photos)) return { needProfile: true, profileStep: 4 };
+    return { needProfile: false };
+  };
 
   const refreshBanStatus = async () => {
     if (!userId) {
@@ -447,18 +487,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const ban = await fetchMyBanStatus();
           setIsBanned(ban.banned);
           setBanReason(ban.banReason);
-          // Same Google/email account: don't force onboarding again if this
-          // device already has name+age (even when DB sync lagged).
-          return profileNeedsBasics(name, age);
+          const gap = profileGap(name, age, photos);
+          if (gap.profileStep) {
+            profileStepRef.current = gap.profileStep;
+            setRegisterStartStep(gap.profileStep);
+          }
+          return gap.needProfile;
         }
-        // No DB row yet — still skip wizard if this device already completed basics.
+        // No DB row yet — still incomplete without a photo.
         const prev = myProfileRef.current;
-        if (!profileNeedsBasics(prev.name, prev.age)) {
+        const gap = profileGap(prev.name, prev.age, prev.photos);
+        if (!gap.needProfile) {
           void persistProfile(uid, { ...prev, basicsLocked: true });
           setTier((t) => (t === "guest" ? "light" : t));
           setIsBanned(false);
           setBanReason(null);
           return false;
+        }
+        if (gap.profileStep) {
+          profileStepRef.current = gap.profileStep;
+          setRegisterStartStep(gap.profileStep);
         }
         setTier((t) => (t === "guest" ? "light" : t));
         setIsBanned(false);
@@ -512,7 +560,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } catch {
           /* ignore */
         }
-        setRegisterStartStep(2);
         setRegisterOpen(true);
       }
       // Clean ?auth=1 from URL after session applied
@@ -531,6 +578,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Prefer getSession (local) then getUser — more reliable when Auth API is slow (e.g. CN).
     void (async () => {
+      try {
       const { data: sess } = await sb.auth.getSession();
       let uid = sess.session?.user?.id ?? null;
       let email = sess.session?.user?.email ?? null;
@@ -561,6 +609,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ) {
         finishOAuthLanding(need, "INITIAL_SESSION");
       }
+      } finally {
+        setProfileSynced(true);
+      }
     })();
     const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
       // Ignore transient signed-out noise during token refresh; SIGNED_OUT is explicit
@@ -587,6 +638,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           session?.user?.email ?? null
         );
         finishOAuthLanding(need, event);
+        setProfileSynced(true);
       })();
     });
     return () => sub.subscription.unsubscribe();
@@ -596,6 +648,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPendingAction(action ?? null);
     if (helloId) setPendingHelloId(helloId);
     setRegisterStartStep(0);
+    setVerifyOpen(false);
+    setRegisterOpen(true);
+  };
+  const openProfileGap = () => {
+    const p = myProfileRef.current;
+    const gap = profileGap(p.name, p.age, p.photos);
+    const step = gap.profileStep ?? 4;
+    profileStepRef.current = step;
+    setRegisterStartStep(step);
     setVerifyOpen(false);
     setRegisterOpen(true);
   };
@@ -669,7 +730,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     mode: "signin" | "signup",
     email: string,
     password: string
-  ): Promise<{ ok: boolean; error?: string; needProfile?: boolean }> => {
+  ): Promise<{
+    ok: boolean;
+    error?: string;
+    needProfile?: boolean;
+    profileStep?: 2 | 4;
+  }> => {
     const trimmed = email.trim().toLowerCase();
     if (!isValidEmail(trimmed)) {
       return {
@@ -715,6 +781,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setResumeEmail(null);
 
     let needProfile = true;
+    let profileStep: 2 | 4 = 2;
     try {
       const raw = await fetchDbProfile(uid);
       if (raw) {
@@ -723,22 +790,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const name =
           (fromDb.name || "").trim() || (prev.name || "").trim() || "";
         const age = fromDb.age ?? prev.age;
-        setMyProfile({ ...prev, ...fromDb, name, age });
+        const photos = fromDb.photos?.length ? fromDb.photos : prev.photos;
+        setMyProfile({ ...prev, ...fromDb, name, age, photos: photos || [] });
         setTier(raw.verified ? "verified" : "light");
-        needProfile = profileNeedsBasics(name, age);
-        if (needProfile === false && profileNeedsBasics(raw.name, raw.age)) {
-          void persistProfile(uid, { ...prev, ...fromDb, name, age });
+        const gap = profileGap(name, age, photos);
+        needProfile = gap.needProfile;
+        profileStep = gap.profileStep ?? 2;
+        if (!profileNeedsBasics(name, age) && profileNeedsBasics(raw.name, raw.age)) {
+          void persistProfile(uid, { ...prev, ...fromDb, name, age, photos: photos || [] });
         }
-      } else if (
-        !profileNeedsBasics(myProfileRef.current.name, myProfileRef.current.age)
-      ) {
-        needProfile = false;
-        void persistProfile(uid, myProfileRef.current);
+      } else {
+        const prev = myProfileRef.current;
+        const gap = profileGap(prev.name, prev.age, prev.photos);
+        needProfile = gap.needProfile;
+        profileStep = gap.profileStep ?? 2;
+        if (!gap.needProfile) void persistProfile(uid, prev);
       }
     } catch {
       /* new user */
     }
-    return { ok: true, needProfile };
+    if (needProfile) {
+      profileStepRef.current = profileStep;
+      setRegisterStartStep(profileStep);
+    }
+    return { ok: true, needProfile, profileStep };
   };
 
   const signInWithOAuth = async (
@@ -800,7 +875,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const verifyEmailOtp = async (
     email: string,
     code: string
-  ): Promise<{ ok: boolean; error?: string; needProfile?: boolean }> => {
+  ): Promise<{
+    ok: boolean;
+    error?: string;
+    needProfile?: boolean;
+    profileStep?: 2 | 4;
+  }> => {
     const trimmed = email.trim().toLowerCase();
     const token = code.trim();
     if (!isValidEmail(trimmed)) {
@@ -835,6 +915,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setResumeEmail(null);
 
     let needProfile = true;
+    let profileStep: 2 | 4 = 2;
     try {
       const raw = await fetchDbProfile(uid);
       if (raw) {
@@ -843,20 +924,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const name =
           (fromDb.name || "").trim() || (prev.name || "").trim() || "";
         const age = fromDb.age ?? prev.age;
-        setMyProfile({ ...prev, ...fromDb, name, age });
+        const photos = fromDb.photos?.length ? fromDb.photos : prev.photos;
+        setMyProfile({ ...prev, ...fromDb, name, age, photos: photos || [] });
         setTier(raw.verified ? "verified" : "light");
-        needProfile = profileNeedsBasics(name, age);
-        if (needProfile === false && profileNeedsBasics(raw.name, raw.age)) {
-          void persistProfile(uid, { ...prev, ...fromDb, name, age });
+        const gap = profileGap(name, age, photos);
+        needProfile = gap.needProfile;
+        profileStep = gap.profileStep ?? 2;
+        if (!profileNeedsBasics(name, age) && profileNeedsBasics(raw.name, raw.age)) {
+          void persistProfile(uid, { ...prev, ...fromDb, name, age, photos: photos || [] });
         }
-      } else if (!profileNeedsBasics(myProfileRef.current.name, myProfileRef.current.age)) {
-        needProfile = false;
-        void persistProfile(uid, myProfileRef.current);
+      } else {
+        const prev = myProfileRef.current;
+        const gap = profileGap(prev.name, prev.age, prev.photos);
+        needProfile = gap.needProfile;
+        profileStep = gap.profileStep ?? 2;
+        if (!gap.needProfile) void persistProfile(uid, prev);
       }
     } catch {
       /* new user */
     }
-    return { ok: true, needProfile };
+    if (needProfile) {
+      profileStepRef.current = profileStep;
+      setRegisterStartStep(profileStep);
+    }
+    return { ok: true, needProfile, profileStep };
   };
 
   const linkEmail = async (
@@ -963,7 +1054,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const verifyPhoneOtp = async (
     e164: string,
     code: string
-  ): Promise<{ ok: boolean; error?: string; needProfile?: boolean }> => {
+  ): Promise<{
+    ok: boolean;
+    error?: string;
+    needProfile?: boolean;
+    profileStep?: 2 | 4;
+  }> => {
     const trimmed = code.trim();
     if (!/^\d{4,8}$/.test(trimmed)) {
       return { ok: false, error: "请输入验证码" };
@@ -1057,6 +1153,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     let needProfile = true;
+    let profileStep: 2 | 4 = 2;
     try {
       const raw = await fetchDbProfile(uid);
       if (raw) {
@@ -1065,21 +1162,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const name =
           (fromDb.name || "").trim() || (prev.name || "").trim() || "";
         const age = fromDb.age ?? prev.age;
+        const photos = fromDb.photos?.length ? fromDb.photos : prev.photos;
         setMyProfile({
           ...prev,
           ...fromDb,
           name,
           age,
+          photos: photos || [],
           phoneE164: e164,
         });
         setTier(raw.verified ? "verified" : "light");
-        needProfile = profileNeedsBasics(name, age);
-        if (!needProfile && profileNeedsBasics(raw.name, raw.age)) {
+        const gap = profileGap(name, age, photos);
+        needProfile = gap.needProfile;
+        profileStep = gap.profileStep ?? 2;
+        if (!profileNeedsBasics(name, age) && profileNeedsBasics(raw.name, raw.age)) {
           void persistProfile(uid, {
             ...prev,
             ...fromDb,
             name,
             age,
+            photos: photos || [],
             phoneE164: e164,
           });
         }
@@ -1087,8 +1189,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const prev = myProfileRef.current;
         setMyProfile({ ...prev, phoneE164: e164 });
         setTier("light");
-        if (!profileNeedsBasics(prev.name, prev.age)) {
-          needProfile = false;
+        const gap = profileGap(prev.name, prev.age, prev.photos);
+        needProfile = gap.needProfile;
+        profileStep = gap.profileStep ?? 2;
+        if (!gap.needProfile) {
           void persistProfile(uid, { ...prev, phoneE164: e164, basicsLocked: true });
         }
       }
@@ -1096,7 +1200,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setMyProfile((prev) => ({ ...prev, phoneE164: e164 }));
       setTier("light");
     }
-    return { ok: true, needProfile };
+    if (needProfile) {
+      profileStepRef.current = profileStep;
+      setRegisterStartStep(profileStep);
+    }
+    return { ok: true, needProfile, profileStep };
   };
 
   const clearUiToGuest = () => {
@@ -1161,6 +1269,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ok: boolean;
     error?: string;
     needProfile?: boolean;
+    profileStep?: 2 | 4;
   }> => {
     const sb = getSupabaseBrowser();
     if (!sb || !isSupabaseConfigured) {
@@ -1194,7 +1303,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const needProfile = apply
       ? await apply(user.id, user.email ?? null)
       : false;
-    return { ok: true, needProfile };
+    return {
+      ok: true,
+      needProfile,
+      profileStep: profileStepRef.current,
+    };
   };
 
   const setPhotoPrivacy = (p: PhotoPrivacy) =>
@@ -1251,6 +1364,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signOut,
       signOutFull,
       resumeSession,
+      openProfileGap,
+      profileSynced,
       setInstalled,
       setRegion,
       setPhotoPrivacy,
@@ -1285,6 +1400,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       notifyPrefs,
       isBanned,
       banReason,
+      profileSynced,
       applyUnreadBadge,
     ]
   );

@@ -242,6 +242,7 @@ function RegisterModal() {
     resumeEmail,
     lastAuthEmail,
     resumeSession,
+    signOut,
     setLocale,
     setRegion,
     locale,
@@ -427,7 +428,7 @@ function RegisterModal() {
       }));
     }
     if (res.needProfile) {
-      setStep(2);
+      setStep(res.profileStep === 4 ? 4 : 2);
     } else {
       closeModals();
     }
@@ -449,7 +450,7 @@ function RegisterModal() {
       return;
     }
     if (res.needProfile) {
-      setStep(2);
+      setStep(res.profileStep === 4 ? 4 : 2);
     } else {
       closeModals();
     }
@@ -611,15 +612,26 @@ function RegisterModal() {
       }));
     }
     if (res.needProfile) {
-      setStep(2);
+      setStep(res.profileStep === 4 ? 4 : 2);
     } else {
       closeModals();
     }
   };
 
   const finish = (goVerify: boolean, previewHome = false) => {
+    const photos = (draft.photos || []).filter((p) => p && p.trim());
+    if (photos.length < 1) {
+      setAuthErr(
+        locale === "en"
+          ? "Add at least one photo to finish signup."
+          : "请至少上传一张照片才能完成注册。"
+      );
+      setStep(4);
+      return;
+    }
     completeRegister({
       ...draft,
+      photos,
       phoneE164: e164 || draft.phoneE164,
       basicsLocked: true,
     });
@@ -655,6 +667,11 @@ function RegisterModal() {
       </button>
     ) : !legalView && step === 3 ? (
       <div className="space-y-2">
+        <p className="text-center text-[11px] text-muted">
+          {locale === "en"
+            ? "A photo is required to finish signup."
+            : "至少上传一张照片后才能完成注册。"}
+        </p>
         <div className="flex gap-2">
           <button
             type="button"
@@ -671,22 +688,6 @@ function RegisterModal() {
             {locale === "en" ? "Add photos →" : "去添加照片 →"}
           </button>
         </div>
-        <button
-          type="button"
-          onClick={() => finish(false, true)}
-          className="w-full rounded-xl border border-line py-2.5 text-sm font-medium"
-        >
-          {locale === "en"
-            ? "Finish & preview profile"
-            : "完成并预览我的主页"}
-        </button>
-        <button
-          type="button"
-          onClick={() => finish(false, false)}
-          className="w-full py-1 text-center text-sm text-muted"
-        >
-          {locale === "en" ? "Finish for now" : "先完成，稍后再补"}
-        </button>
       </div>
     ) : !legalView && step === 4 ? (
       <div className="space-y-2">
@@ -715,6 +716,15 @@ function RegisterModal() {
         >
           {locale === "en" ? "Back" : "上一步"}
         </button>
+        {draft.photos.filter((p) => p?.trim()).length < 1 && (
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="w-full py-1 text-center text-xs text-muted"
+          >
+            {locale === "en" ? "Sign out" : "退出登录"}
+          </button>
+        )}
       </div>
     ) : undefined;
 
@@ -722,7 +732,24 @@ function RegisterModal() {
     <Sheet
       solid={!!legalView}
       footer={registerFooter}
-      onClose={legalView ? () => setLegalView(null) : closeModals}
+      onClose={
+        legalView
+          ? () => setLegalView(null)
+          : () => {
+              if (
+                step === 4 &&
+                draft.photos.filter((p) => p?.trim()).length < 1
+              ) {
+                setAuthErr(
+                  locale === "en"
+                    ? "Add at least one photo to finish signup."
+                    : "请至少上传一张照片才能完成注册。"
+                );
+                return;
+              }
+              closeModals();
+            }
+      }
     >
       {legalView === "terms" && (
         <LegalInline
@@ -1007,12 +1034,20 @@ function RegisterModal() {
           <h3 className="text-xl font-bold">
             {locale === "en" ? "Photos" : "照片"}
           </h3>
+          <p className="mt-1 text-sm text-muted">
+            {locale === "en"
+              ? "At least one photo is required to finish signup."
+              : "至少上传一张照片，注册才算完成。"}
+          </p>
           <div className="mt-3 rounded-xl border border-line bg-surface-2 p-3">
             <CompletenessBar profile={draft} verified={false} />
           </div>
           <div className="mt-4">
             <ProfilePhotoFields value={draft} onChange={patch} />
           </div>
+          {authErr && (
+            <p className="mt-3 text-sm text-danger">{authErr}</p>
+          )}
         </div>
       )}
     </Sheet>
