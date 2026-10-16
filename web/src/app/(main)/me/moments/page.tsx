@@ -10,6 +10,7 @@ import {
   migrateLocalMomentsToCloud,
   removeUserMomentEverywhere,
 } from "@/lib/momentsDb";
+import ImageLightbox from "@/components/ImageLightbox";
 
 type Tab = "posts" | "activity";
 
@@ -24,15 +25,34 @@ type ActivityItem = {
 };
 
 function MediaThumb({ post }: { post: UserMomentPost }) {
-  const img = post.media?.find((m) => m.type === "image");
-  if (!img) return null;
+  const [open, setOpen] = useState(false);
+  const urls =
+    post.media?.filter((m) => m.type === "image").map((m) => m.url) ?? [];
+  if (!urls.length) return null;
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={img.url}
-      alt=""
-      className="mt-2 h-20 w-20 rounded-lg object-cover bg-surface-2"
-    />
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-2 block cursor-zoom-in"
+        aria-label="放大查看照片"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={urls[0]}
+          alt=""
+          className="h-20 w-20 rounded-lg object-cover bg-surface-2"
+        />
+      </button>
+      {open && (
+        <ImageLightbox
+          src={urls[0]}
+          images={urls}
+          index={0}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
   );
 }
 

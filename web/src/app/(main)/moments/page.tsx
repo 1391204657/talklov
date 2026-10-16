@@ -21,6 +21,7 @@ import {
 } from "@/lib/momentsDb";
 import { getDuoInvite, type DuoInvite } from "@/lib/duoDub";
 import { useApp } from "@/lib/store";
+import ImageLightbox from "@/components/ImageLightbox";
 
 const IconHeart = ({ filled }: { filled?: boolean }) => (
   <svg viewBox="0 0 20 20" className="inline h-4 w-4" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -56,21 +57,27 @@ function displayName(by: string, fallbackMe: string) {
 }
 
 function MediaGrid({ media }: { media: MomentMedia[] }) {
+  const [open, setOpen] = useState<number | null>(null);
   if (!media.length) return null;
   const images = media.filter((m) => m.type === "image");
   const videos = media.filter((m) => m.type === "video");
+  const urls = images.map((m) => m.url);
 
   return (
     <div className="mt-3 space-y-2">
       {images.length === 1 ? (
-        <div className="overflow-hidden rounded-xl bg-surface-2">
+        <button
+          type="button"
+          onClick={() => setOpen(0)}
+          className="block w-full overflow-hidden rounded-xl bg-surface-2 text-left cursor-zoom-in"
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={images[0].url}
             alt={images[0].alt || ""}
             className="max-h-72 w-full object-cover"
           />
-        </div>
+        </button>
       ) : images.length > 1 ? (
         <div
           className={`grid gap-1.5 ${
@@ -78,9 +85,11 @@ function MediaGrid({ media }: { media: MomentMedia[] }) {
           }`}
         >
           {images.map((m, i) => (
-            <div
+            <button
+              type="button"
               key={`${m.url}-${i}`}
-              className="aspect-square overflow-hidden rounded-lg bg-surface-2"
+              onClick={() => setOpen(i)}
+              className="aspect-square overflow-hidden rounded-lg bg-surface-2 cursor-zoom-in"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -88,7 +97,7 @@ function MediaGrid({ media }: { media: MomentMedia[] }) {
                 alt={m.alt || ""}
                 className="h-full w-full object-cover"
               />
-            </div>
+            </button>
           ))}
         </div>
       ) : null}
@@ -103,6 +112,16 @@ function MediaGrid({ media }: { media: MomentMedia[] }) {
           </div>
         </div>
       ))}
+
+      {open != null && urls[open] && (
+        <ImageLightbox
+          src={urls[open]}
+          images={urls}
+          index={open}
+          onIndex={setOpen}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </div>
   );
 }

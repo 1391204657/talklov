@@ -12,6 +12,7 @@ import {
   MAX_MOMENT_IMAGES,
 } from "@/lib/datingSim";
 import { publishUserMoment } from "@/lib/momentsDb";
+import ImageLightbox from "@/components/ImageLightbox";
 
 type DraftImage = { id: string; url: string };
 
@@ -23,6 +24,7 @@ export default function ComposeMomentPage() {
   const [posted, setPosted] = useState(false);
   const [images, setImages] = useState<DraftImage[]>([]);
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loggedIn =
@@ -190,21 +192,32 @@ export default function ComposeMomentPage() {
 
       {/* Photo grid */}
       <div className="mt-3 grid grid-cols-3 gap-2">
-          {images.map((img) => (
+          {images.map((img, i) => (
             <div
               key={img.id}
               className="relative aspect-square overflow-hidden rounded-xl bg-surface-2"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={img.url}
-                alt=""
-                className="h-full w-full object-cover"
-              />
               <button
                 type="button"
-                onClick={() => removeImage(img.id)}
-                className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-xs text-white"
+                onClick={() => setPreview(i)}
+                className="absolute inset-0 cursor-zoom-in"
+                aria-label={en ? "Enlarge photo" : "放大查看照片"}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={img.url}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  removeImage(img.id);
+                  if (preview === i) setPreview(null);
+                  else if (preview != null && preview > i) setPreview(preview - 1);
+                }}
+                className="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-xs text-white"
                 aria-label={en ? "Remove" : "删除"}
               >
                 ✕
@@ -306,6 +319,16 @@ export default function ComposeMomentPage() {
       >
         {busy ? (en ? "Checking…" : "审核中…") : en ? "Post" : "发布"}
       </button>
+
+      {preview != null && images[preview] && (
+        <ImageLightbox
+          src={images[preview].url}
+          images={images.map((img) => img.url)}
+          index={preview}
+          onIndex={setPreview}
+          onClose={() => setPreview(null)}
+        />
+      )}
     </main>
   );
 }

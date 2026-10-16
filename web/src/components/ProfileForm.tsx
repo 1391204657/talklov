@@ -13,8 +13,10 @@ import {
   type MyProfile,
 } from "@/lib/profile";
 import { ChineseVariant, Intent } from "@/lib/types";
+import { useState } from "react";
 import { compressImageFile } from "@/lib/photoUpload";
 import { VoiceIntroRecorder } from "@/components/VoiceIntroRecorder";
+import ImageLightbox from "@/components/ImageLightbox";
 import { useApp } from "@/lib/store";
 
 function useFormLocale() {
@@ -474,6 +476,7 @@ export function ProfilePhotoFields({
   onChange: (p: Partial<Draft>) => void;
 }) {
   const en = useFormLocale() === "en";
+  const [preview, setPreview] = useState<number | null>(null);
   const onPick = async (files: FileList | null) => {
     if (!files?.length) return;
     const room = MAX_PHOTOS - value.photos.length;
@@ -495,8 +498,8 @@ export function ProfilePhotoFields({
     <div className="space-y-3">
       <p className="text-sm text-muted">
         {en
-          ? `Clear selfies work best. Up to ${MAX_PHOTOS} photos, at least 1.`
-          : `建议上传清晰自拍。最多 ${MAX_PHOTOS} 张，至少 1 张。`}
+          ? `Clear selfies work best. Up to ${MAX_PHOTOS} photos, at least 1. Tap a photo to enlarge before you finish.`
+          : `建议上传清晰自拍。最多 ${MAX_PHOTOS} 张，至少 1 张。点照片可放大查看，确认后再完成。`}
       </p>
       <div className="grid grid-cols-3 gap-2">
         {value.photos.map((src, i) => (
@@ -504,21 +507,31 @@ export function ProfilePhotoFields({
             key={i}
             className="relative aspect-[3/4] overflow-hidden rounded-xl bg-surface-2"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt="" className="h-full w-full object-cover" />
             <button
               type="button"
-              onClick={() =>
+              onClick={() => setPreview(i)}
+              className="absolute inset-0 cursor-zoom-in"
+              aria-label={en ? "Enlarge photo" : "放大查看照片"}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={src} alt="" className="h-full w-full object-cover" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
                 onChange({
                   photos: value.photos.filter((_, j) => j !== i),
-                })
-              }
-              className="absolute right-1 top-1 rounded-full bg-black/55 px-1.5 text-xs text-white"
+                });
+                if (preview === i) setPreview(null);
+                else if (preview != null && preview > i) setPreview(preview - 1);
+              }}
+              className="absolute right-1 top-1 z-10 rounded-full bg-black/55 px-1.5 text-xs text-white"
             >
               ✕
             </button>
             {i === 0 && (
-              <span className="absolute bottom-1 left-1 rounded bg-black/55 px-1.5 text-[10px] text-white">
+              <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/55 px-1.5 text-[10px] text-white">
                 {en ? "Main" : "主图"}
               </span>
             )}
@@ -541,6 +554,15 @@ export function ProfilePhotoFields({
           </label>
         )}
       </div>
+      {preview != null && value.photos[preview] && (
+        <ImageLightbox
+          src={value.photos[preview]}
+          images={value.photos}
+          index={preview}
+          onIndex={setPreview}
+          onClose={() => setPreview(null)}
+        />
+      )}
     </div>
   );
 }
