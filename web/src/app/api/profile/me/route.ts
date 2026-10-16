@@ -88,6 +88,16 @@ export async function POST(req: NextRequest) {
   const admin = getSupabaseAdmin();
   const writer = admin || sb;
 
+  const { data: existing } = await writer
+    .from("profiles")
+    .select("age,gender,country")
+    .eq("id", user.id)
+    .maybeSingle();
+  const ageLocked =
+    existing?.age != null &&
+    Number(existing.age) >= 18 &&
+    Number(existing.age) <= 99;
+
   const remotePhotos: string[] = [];
   const incoming = Array.isArray(body.photos) ? body.photos.slice(0, 6) : [];
   for (let i = 0; i < incoming.length; i++) {
@@ -108,9 +118,21 @@ export async function POST(req: NextRequest) {
     updated_at: new Date().toISOString(),
   };
   if (body.name !== undefined) patch.name = String(body.name).trim();
-  if (body.gender !== undefined) patch.gender = body.gender;
-  if (body.age !== undefined) patch.age = body.age;
-  if (body.country !== undefined) patch.country = body.country;
+  // Age / gender / country are set once at signup and cannot change afterward.
+  if (!ageLocked) {
+    if (body.gender !== undefined) patch.gender = body.gender;
+    if (body.country !== undefined) patch.country = body.country;
+    if (body.age !== undefined && body.age !== null) {
+      const ageNum = Number(body.age);
+      if (Number.isNaN(ageNum) || ageNum < 18 || ageNum > 99) {
+        return NextResponse.json(
+          { error: "Age must be between 18 and 99." },
+          { status: 400 }
+        );
+      }
+      patch.age = ageNum;
+    }
+  }
   if (body.city !== undefined) patch.city = body.city;
   if (body.occupation !== undefined) patch.occupation = body.occupation;
   if (body.education !== undefined) patch.education = body.education;

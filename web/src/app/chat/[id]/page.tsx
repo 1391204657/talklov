@@ -27,6 +27,7 @@ import { tChat } from "@/lib/chatCopy";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   resolveConversation,
+  ensureOpenerMessage,
   fetchMessages,
   sendMessage as dbSendMessage,
   subscribeMessages,
@@ -263,7 +264,11 @@ export default function Chat() {
         if (!conv || cancelled) return;
         setConversationId(conv.id);
         if (conv.status === "accepted") {
-          const msgs = await fetchMessages(conv.id, userId);
+          let msgs = await fetchMessages(conv.id, userId);
+          if (!cancelled && msgs.length === 0) {
+            const seeded = await ensureOpenerMessage(conv.id);
+            if (seeded) msgs = await fetchMessages(conv.id, userId);
+          }
           if (!cancelled) setMessages(msgs);
           unsub = subscribeMessages(conv.id, userId, (m) =>
             setMessages((prev) =>

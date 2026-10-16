@@ -577,26 +577,39 @@ export async function fetchConversations(): Promise<ConversationSummary[]> {
 
 /** Recipient accepts an opener → conversation becomes 'accepted' and opener becomes first message. */
 export async function acceptIcebreaker(icebreakerId: string): Promise<void> {
-  const sb = must();
-  const { data: ib, error } = await sb
-    .from("icebreakers")
-    .update({ status: "accepted" })
-    .eq("id", icebreakerId)
-    .select("conversation_id, sender_id, text")
-    .single();
-  if (error) throw error;
-
-  await sb
-    .from("conversations")
-    .update({ status: "accepted" })
-    .eq("id", ib.conversation_id);
-
-  await sb.from("messages").insert({
-    conversation_id: ib.conversation_id,
-    sender_id: ib.sender_id,
-    kind: "text",
-    content: ib.text,
+  // Must go through the server: browser RLS only allows inserting messages as yourself,
+  // but the opener must appear as the original sender.
+  const res = await fetch("/api/inbox/accept", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    cache: "no-store",
+    body: JSON.stringify({ icebreakerId }),
   });
+  if (!res.ok) {
+    const json = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(json.error || "accept failed");
+  }
+}
+
+/** Seed the accepted icebreaker into chat when an older accept left the thread empty. */
+export async function ensureOpenerMessage(
+  conversationId: string
+): Promise<boolean> {
+  try {
+    const res = await fetch("/api/inbox/ensure-opener", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      cache: "no-store",
+      body: JSON.stringify({ conversationId }),
+    });
+    if (!res.ok) return false;
+    const json = (await res.json()) as { seeded?: boolean };
+    return Boolean(json.seeded);
+  } catch {
+    return false;
+  }
 }
 
 /** Find a conversation between me and `otherId` (either direction). */

@@ -38,7 +38,14 @@ export default function EditProfile() {
   const patch = (p: Partial<MyProfile>) =>
     setDraft((d) => ({ ...d, ...p }));
 
+  const ageOk =
+    draft.age != null && draft.age >= 18 && draft.age <= 99;
+  const basicsLocked =
+    myProfile.basicsLocked ||
+    (myProfile.age != null && myProfile.age >= 18);
+
   const save = () => {
+    if (!draft.name.trim() || !ageOk || draft.photos.length < 1) return;
     updateMyProfile({ ...draft, basicsLocked: true });
     setSaved(true);
     setTimeout(() => router.push("/me"), 600);
@@ -70,7 +77,7 @@ export default function EditProfile() {
           <ProfileBasicsFields
             value={draft}
             onChange={patch}
-            locked={myProfile.basicsLocked || Boolean(myProfile.age)}
+            locked={basicsLocked}
           />
         </section>
 
@@ -90,7 +97,7 @@ export default function EditProfile() {
 
         <button
           onClick={save}
-          disabled={!draft.name.trim() || draft.photos.length < 1}
+          disabled={!draft.name.trim() || !ageOk || draft.photos.length < 1}
           className="btn-grad w-full rounded-2xl py-3.5 font-semibold disabled:opacity-40"
         >
           {saved

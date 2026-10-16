@@ -30,6 +30,30 @@ interface QueueItem {
   id: string;
   text: string;
   sender: Profile;
+  createdAt?: string;
+}
+
+function formatHelloTime(iso: string | undefined, en: boolean): string {
+  if (!iso) return "";
+  try {
+    const t = new Date(iso).getTime();
+    if (Number.isNaN(t)) return "";
+    const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+    if (mins < 1) return en ? "Just now" : "刚刚";
+    if (mins < 60) return en ? `${mins}m ago` : `${mins} 分钟前`;
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return en ? `${hours}h ago` : `${hours} 小时前`;
+    const days = Math.round(hours / 24);
+    if (days < 7) return en ? `${days}d ago` : `${days} 天前`;
+    return new Date(iso).toLocaleString(en ? "en-US" : "zh-CN", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
 }
 
 type PinTarget = {
@@ -111,6 +135,7 @@ export default function MessagesClient() {
             id: r.id,
             text: r.text,
             sender: r.sender,
+            createdAt: r.createdAt,
           }))
         );
         setConvos(json.conversations || []);
@@ -147,6 +172,7 @@ export default function MessagesClient() {
             id: r.id,
             text: r.text,
             sender: r.sender,
+            createdAt: r.createdAt,
           }))
         );
         setConvos(json.conversations || []);
@@ -334,11 +360,20 @@ export default function MessagesClient() {
                       size="h-11 w-11"
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1 font-medium">
-                        {item.sender?.name || "用户"}
-                        <span className="text-xs">
-                          {item.sender?.country === "US" ? "🇺🇸" : "🇨🇳"}
-                        </span>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-1 font-medium">
+                          <span className="truncate">
+                            {item.sender?.name || "用户"}
+                          </span>
+                          <span className="shrink-0 text-xs">
+                            {item.sender?.country === "US" ? "🇺🇸" : "🇨🇳"}
+                          </span>
+                        </div>
+                        {item.createdAt && (
+                          <span className="shrink-0 text-[11px] text-muted">
+                            {formatHelloTime(item.createdAt, en)}
+                          </span>
+                        )}
                       </div>
                       <div className="text-[13px] leading-snug text-muted">
                         {item.text}

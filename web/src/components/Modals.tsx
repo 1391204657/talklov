@@ -619,6 +619,15 @@ function RegisterModal() {
   };
 
   const finish = (goVerify: boolean, previewHome = false) => {
+    if (draft.age == null || draft.age < 18 || draft.age > 99) {
+      setAuthErr(
+        locale === "en"
+          ? "Age is required (18–99) and cannot be changed later."
+          : "年龄为必填项（18–99），注册后不可修改。"
+      );
+      setStep(2);
+      return;
+    }
     const photos = (draft.photos || []).filter((p) => p && p.trim());
     if (photos.length < 1) {
       setAuthErr(

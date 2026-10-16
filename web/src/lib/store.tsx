@@ -675,7 +675,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateMyProfile = (p: Partial<MyProfile>) => {
     setMyProfile((prev) => {
       const next = { ...prev, ...p };
-      if (prev.basicsLocked) {
+      const ageSet =
+        prev.age != null && prev.age >= 18 && prev.age <= 99;
+      if (prev.basicsLocked || ageSet) {
         next.gender = prev.gender;
         next.age = prev.age;
         next.country = prev.country;
@@ -692,9 +694,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const completeRegister = (p: Partial<MyProfile>) => {
     setMyProfile((prev) => {
+      const mergedAge = p.age !== undefined ? p.age : prev.age;
+      if (mergedAge == null || mergedAge < 18 || mergedAge > 99) {
+        return prev;
+      }
       const next: MyProfile = {
         ...prev,
         ...p,
+        age: mergedAge,
         basicsLocked: true,
       };
       void persistProfile(userId, next).then((synced) => {

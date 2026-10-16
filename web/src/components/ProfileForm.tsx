@@ -129,19 +129,34 @@ export function ProfileBasicsFields({
         </div>
       </Field>
 
-      <Field label={en ? "Age *" : "年龄 *"} hint={lockedHint}>
+      <Field
+        label={en ? "Age *" : "年龄 *"}
+        hint={
+          locked
+            ? lockedHint
+            : en
+              ? "Required · cannot change after signup"
+              : "必填 · 注册后不可修改"
+        }
+      >
         <input
           type="number"
+          inputMode="numeric"
           min={18}
           max={99}
+          required
           disabled={locked}
           value={value.age ?? ""}
-          onChange={(e) =>
-            onChange({
-              age: e.target.value ? Number(e.target.value) : null,
-            })
-          }
-          placeholder="18+"
+          onChange={(e) => {
+            const raw = e.target.value.trim();
+            if (!raw) {
+              onChange({ age: null });
+              return;
+            }
+            const n = Number(raw);
+            onChange({ age: Number.isFinite(n) ? n : null });
+          }}
+          placeholder={en ? "18–99" : "18–99"}
           className="w-full rounded-xl border border-line bg-surface-2 px-4 py-3 outline-none focus:border-accent disabled:opacity-60"
         />
       </Field>
