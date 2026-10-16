@@ -6,6 +6,11 @@ export interface MyProfile {
   name: string;
   gender: Gender;
   age: number | null;
+  /**
+   * Locked calendar birth year (derived once from age at signup).
+   * Displayed age is always currentYear - birthYear — no manual save needed.
+   */
+  birthYear: number | null;
   country: CountryCode;
   city: string;
   occupation: string;
@@ -33,6 +38,7 @@ export const defaultMyProfile: MyProfile = {
   name: "",
   gender: "male",
   age: null,
+  birthYear: null,
   country: "US",
   city: "",
   occupation: "",

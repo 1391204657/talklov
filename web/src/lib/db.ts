@@ -10,6 +10,7 @@ import { parseChineseVariants } from "./profile";
 import { isFounderFrozen } from "./entitlements";
 import { proxiedMediaList, proxiedMediaUrl } from "./mediaProxy";
 import { birthYearFromAge, resolveProfileAge } from "./age";
+// birthYearFromAge used when first writing age via direct upsert fallback
 
 // ---- Row shapes as stored in Postgres (snake_case) ----
 export interface DbProfile {
@@ -221,13 +222,18 @@ export async function isPhoneTaken(e164: string): Promise<boolean> {
 export function dbToMyPartial(r: DbProfile) {
   const photos =
     r.photos?.length ? r.photos : r.avatar_url ? [r.avatar_url] : [];
+  const live = resolveProfileAge(r.birth_year, r.age);
+  const birthYear =
+    r.birth_year != null && Number.isFinite(Number(r.birth_year))
+      ? Number(r.birth_year)
+      : live > 0
+        ? birthYearFromAge(live)
+        : null;
   return {
     name: r.name || "",
     gender: (r.gender === "female" ? "female" : "male") as "male" | "female",
-    age: (() => {
-      const n = resolveProfileAge(r.birth_year, r.age);
-      return n > 0 ? n : null;
-    })(),
+    age: live > 0 ? live : null,
+    birthYear,
     country: (r.country === "CN"
       ? "CN"
       : r.country === "US"

@@ -31,3 +31,30 @@ export function resolveProfileAge(
   if (storedAge != null && storedAge >= 18) return storedAge;
   return 0;
 }
+
+type AgeFields = {
+  age: number | null;
+  birthYear: number | null;
+};
+
+/**
+ * Ensure birthYear is set (once) and age matches the current calendar year.
+ * Safe to run on every app launch — does not require the user to save.
+ */
+export function withLiveAge<T extends AgeFields>(profile: T, now = new Date()): T {
+  let birthYear = profile.birthYear;
+  if (
+    (birthYear == null || !Number.isFinite(birthYear)) &&
+    profile.age != null &&
+    profile.age >= 18 &&
+    profile.age <= 120
+  ) {
+    birthYear = birthYearFromAge(profile.age, now);
+  }
+  const age = ageFromBirthYear(birthYear, now);
+  return {
+    ...profile,
+    birthYear: birthYear ?? null,
+    age: age ?? profile.age,
+  };
+}

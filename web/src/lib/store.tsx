@@ -23,6 +23,7 @@ import {
 } from "./db";
 import { fetchMyBanStatus } from "./moderation";
 import { defaultMyProfile, type MyProfile } from "./profile";
+import { birthYearFromAge, withLiveAge } from "./age";
 import {
   DEMO_OTP,
   dialMeta,
@@ -297,13 +298,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setInstalled(s.installed ?? false);
         setTheme(s.theme ?? "light");
         setLocale(s.locale === "en" ? "en" : "zh");
-        setMyProfile({
-          ...defaultMyProfile,
-          ...(s.myProfile ?? {}),
-          chineseVariants: s.myProfile?.chineseVariants ?? [],
-          phoneE164: phone,
-          voiceIntroUrl: s.myProfile?.voiceIntroUrl ?? "",
-        });
+        setMyProfile(
+          withLiveAge({
+            ...defaultMyProfile,
+            ...(s.myProfile ?? {}),
+            chineseVariants: s.myProfile?.chineseVariants ?? [],
+            phoneE164: phone,
+            voiceIntroUrl: s.myProfile?.voiceIntroUrl ?? "",
+            birthYear:
+              typeof s.myProfile?.birthYear === "number"
+                ? s.myProfile.birthYear
+                : null,
+          })
+        );
       }
       const nRaw = localStorage.getItem(NOTIFY_KEY);
       if (nRaw) {
@@ -456,13 +463,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           const photos = dbPhotos.length ? dbPhotos : localPhotos;
           const name =
             (fromDb.name || "").trim() || (prev.name || "").trim() || "";
-          const age = fromDb.age ?? prev.age;
-          const merged = {
+          const merged = withLiveAge({
             ...prev,
             ...fromDb,
             name,
-            age,
             photos,
+            birthYear: fromDb.birthYear ?? prev.birthYear ?? null,
             phoneE164:
               secrets.phoneE164 || fromDb.phoneE164 || prev.phoneE164 || "",
             voiceIntroUrl: prev.voiceIntroUrl || "",
@@ -472,7 +478,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
               (!profileNeedsBasics(fromDb.name, fromDb.age) &&
                 !!fromDb.gender &&
                 !!fromDb.country),
-          };
+          });
+          const age = merged.age;
           // Local had filled profile but DB still empty (CN direct upsert often fails)
           const shouldPush =
             (!!(prev.name || "").trim() && !(fromDb.name || "").trim()) ||
@@ -481,6 +488,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
               profileNeedsBasics(raw.name || "", raw.age));
           if (shouldPush) {
             void persistProfile(uid, merged);
+          } else if (
+            merged.birthYear != null &&
+            raw.age != null &&
+            merged.age != null &&
+            raw.age !== merged.age
+          ) {
+            // Refresh the age snapshot quietly — no user save required.
+            void persistProfile(uid, { birthYear: merged.birthYear });
           }
           setMyProfile(merged);
           setTier(raw.verified ? "verified" : "light");
@@ -676,19 +691,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMyProfile((prev) => {
       const next = { ...prev, ...p };
       const ageSet =
-        prev.age != null && prev.age >= 18 && prev.age <= 99;
+        (prev.birthYear != null && prev.birthYear >= 1900) ||
+        (prev.age != null && prev.age >= 18 && prev.age <= 99);
       if (prev.basicsLocked || ageSet) {
         next.gender = prev.gender;
-        next.age = prev.age;
         next.country = prev.country;
+        next.birthYear = prev.birthYear;
         next.basicsLocked = true;
+      } else if (next.age != null && next.age >= 18 && next.birthYear == null) {
+        next.birthYear = birthYearFromAge(next.age);
       }
-      void persistProfile(userId, next).then((synced) => {
+      const live = withLiveAge(next);
+      void persistProfile(userId, live).then((synced) => {
         if (synced?.photos?.length) {
           setMyProfile((cur) => ({ ...cur, photos: synced.photos! }));
         }
       });
-      return next;
+      return live;
     });
   };
 
@@ -698,12 +717,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (mergedAge == null || mergedAge < 18 || mergedAge > 99) {
         return prev;
       }
-      const next: MyProfile = {
+      const next: MyProfile = withLiveAge({
         ...prev,
         ...p,
         age: mergedAge,
+        birthYear: prev.birthYear ?? birthYearFromAge(mergedAge),
         basicsLocked: true,
-      };
+      });
       void persistProfile(userId, next).then((synced) => {
         if (synced?.photos?.length) {
           setMyProfile((cur) => ({ ...cur, photos: synced.photos! }));
@@ -796,15 +816,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const prev = myProfileRef.current;
         const name =
           (fromDb.name || "").trim() || (prev.name || "").trim() || "";
-        const age = fromDb.age ?? prev.age;
         const photos = fromDb.photos?.length ? fromDb.photos : prev.photos;
-        setMyProfile({ ...prev, ...fromDb, name, age, photos: photos || [] });
+        const merged = withLiveAge({
+          ...prev,
+          ...fromDb,
+          name,
+          photos: photos || [],
+          birthYear: fromDb.birthYear ?? prev.birthYear ?? null,
+        });
+        const age = merged.age;
+        setMyProfile(merged);
         setTier(raw.verified ? "verified" : "light");
         const gap = profileGap(name, age, photos);
         needProfile = gap.needProfile;
         profileStep = gap.profileStep ?? 2;
         if (!profileNeedsBasics(name, age) && profileNeedsBasics(raw.name, raw.age)) {
-          void persistProfile(uid, { ...prev, ...fromDb, name, age, photos: photos || [] });
+          void persistProfile(uid, merged);
         }
       } else {
         const prev = myProfileRef.current;
@@ -930,15 +957,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const prev = myProfileRef.current;
         const name =
           (fromDb.name || "").trim() || (prev.name || "").trim() || "";
-        const age = fromDb.age ?? prev.age;
         const photos = fromDb.photos?.length ? fromDb.photos : prev.photos;
-        setMyProfile({ ...prev, ...fromDb, name, age, photos: photos || [] });
+        const merged = withLiveAge({
+          ...prev,
+          ...fromDb,
+          name,
+          photos: photos || [],
+          birthYear: fromDb.birthYear ?? prev.birthYear ?? null,
+        });
+        const age = merged.age;
+        setMyProfile(merged);
         setTier(raw.verified ? "verified" : "light");
         const gap = profileGap(name, age, photos);
         needProfile = gap.needProfile;
         profileStep = gap.profileStep ?? 2;
         if (!profileNeedsBasics(name, age) && profileNeedsBasics(raw.name, raw.age)) {
-          void persistProfile(uid, { ...prev, ...fromDb, name, age, photos: photos || [] });
+          void persistProfile(uid, merged);
         }
       } else {
         const prev = myProfileRef.current;
@@ -1168,33 +1202,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const prev = myProfileRef.current;
         const name =
           (fromDb.name || "").trim() || (prev.name || "").trim() || "";
-        const age = fromDb.age ?? prev.age;
         const photos = fromDb.photos?.length ? fromDb.photos : prev.photos;
-        setMyProfile({
+        const merged = withLiveAge({
           ...prev,
           ...fromDb,
           name,
-          age,
           photos: photos || [],
           phoneE164: e164,
+          birthYear: fromDb.birthYear ?? prev.birthYear ?? null,
         });
+        const age = merged.age;
+        setMyProfile(merged);
         setTier(raw.verified ? "verified" : "light");
         const gap = profileGap(name, age, photos);
         needProfile = gap.needProfile;
         profileStep = gap.profileStep ?? 2;
         if (!profileNeedsBasics(name, age) && profileNeedsBasics(raw.name, raw.age)) {
-          void persistProfile(uid, {
-            ...prev,
-            ...fromDb,
-            name,
-            age,
-            photos: photos || [],
-            phoneE164: e164,
-          });
+          void persistProfile(uid, merged);
         }
       } else {
         const prev = myProfileRef.current;
-        setMyProfile({ ...prev, phoneE164: e164 });
+        setMyProfile(withLiveAge({ ...prev, phoneE164: e164 }));
         setTier("light");
         const gap = profileGap(prev.name, prev.age, prev.photos);
         needProfile = gap.needProfile;
