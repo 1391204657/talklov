@@ -1007,8 +1007,8 @@ function RegisterModal() {
           </h3>
           <p className="mt-1 text-sm text-muted">
             {locale === "en"
-              ? "Gender, age, and country can’t be changed later — choose carefully."
-              : "性别、年龄、国家保存后不可修改，请认真填写。"}
+              ? "Gender, age, and country can’t be changed later. Age increases automatically each year."
+              : "性别、年龄、国家保存后不可修改；年龄会按年份自动加一岁。"}
           </p>
           <div className="mt-4">
             <ProfileBasicsFields value={draft} onChange={patch} />

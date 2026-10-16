@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { SUPABASE_URL } from "@/lib/supabase/config";
+import { ageFromBirthYear, birthYearFromAge } from "@/lib/age";
 
 export const dynamic = "force-dynamic";
 
@@ -90,13 +91,18 @@ export async function POST(req: NextRequest) {
 
   const { data: existing } = await writer
     .from("profiles")
-    .select("age,gender,country")
+    .select("age,gender,country,birth_year")
     .eq("id", user.id)
     .maybeSingle();
+  const existingBirthYear =
+    existing?.birth_year != null ? Number(existing.birth_year) : null;
   const ageLocked =
-    existing?.age != null &&
-    Number(existing.age) >= 18 &&
-    Number(existing.age) <= 99;
+    (existingBirthYear != null &&
+      existingBirthYear >= 1900 &&
+      existingBirthYear <= 2100) ||
+    (existing?.age != null &&
+      Number(existing.age) >= 18 &&
+      Number(existing.age) <= 99);
 
   const remotePhotos: string[] = [];
   const incoming = Array.isArray(body.photos) ? body.photos.slice(0, 6) : [];
@@ -118,7 +124,7 @@ export async function POST(req: NextRequest) {
     updated_at: new Date().toISOString(),
   };
   if (body.name !== undefined) patch.name = String(body.name).trim();
-  // Age / gender / country are set once at signup and cannot change afterward.
+  // Age / gender / country / birth year are set once at signup and cannot change.
   if (!ageLocked) {
     if (body.gender !== undefined) patch.gender = body.gender;
     if (body.country !== undefined) patch.country = body.country;
@@ -130,8 +136,20 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
+      const by = birthYearFromAge(ageNum);
+      patch.birth_year = by;
       patch.age = ageNum;
     }
+  } else if (existingBirthYear != null) {
+    // Keep the age snapshot current for filters; birth_year stays locked.
+    const live = ageFromBirthYear(existingBirthYear);
+    if (live != null) patch.age = live;
+  } else if (existing?.age != null && Number(existing.age) >= 18) {
+    // One-time backfill before the SQL migration lands for everyone.
+    const by = birthYearFromAge(Number(existing.age));
+    patch.birth_year = by;
+    const live = ageFromBirthYear(by);
+    if (live != null) patch.age = live;
   }
   if (body.city !== undefined) patch.city = body.city;
   if (body.occupation !== undefined) patch.occupation = body.occupation;

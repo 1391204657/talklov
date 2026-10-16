@@ -21,6 +21,7 @@ create table if not exists public.profiles (
   handle         text unique,                       -- @handle used for the photo watermark
   name           text not null default '',
   age            int  check (age is null or age between 18 and 120),
+  birth_year     int  check (birth_year is null or (birth_year >= 1900 and birth_year <= 2100)),
   gender         text check (gender in ('male','female','other')),
   country        text,                              -- 'CN' | 'US' | ...
   city           text,

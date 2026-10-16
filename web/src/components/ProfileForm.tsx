@@ -133,10 +133,12 @@ export function ProfileBasicsFields({
         label={en ? "Age *" : "年龄 *"}
         hint={
           locked
-            ? lockedHint
+            ? en
+              ? "Locked · increases each calendar year"
+              : "已锁定 · 每年自动加一岁"
             : en
-              ? "Required · cannot change after signup"
-              : "必填 · 注册后不可修改"
+              ? "Required · locked after signup; increases each year"
+              : "必填 · 注册后不可改，每年自动加一岁"
         }
       >
         <input

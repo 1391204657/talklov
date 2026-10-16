@@ -9,6 +9,7 @@ import { ChatMessage, Profile } from "./types";
 import { parseChineseVariants } from "./profile";
 import { isFounderFrozen } from "./entitlements";
 import { proxiedMediaList, proxiedMediaUrl } from "./mediaProxy";
+import { birthYearFromAge, resolveProfileAge } from "./age";
 
 // ---- Row shapes as stored in Postgres (snake_case) ----
 export interface DbProfile {
@@ -16,6 +17,7 @@ export interface DbProfile {
   handle: string | null;
   name: string;
   age: number | null;
+  birth_year?: number | null;
   gender: "male" | "female" | "other" | null;
   country: string | null;
   city: string | null;
@@ -78,7 +80,7 @@ export function toProfile(r: DbProfile): Profile {
   return {
     id: r.id,
     name: r.name || "用户",
-    age: r.age ?? 0,
+    age: resolveProfileAge(r.birth_year, r.age),
     gender: (r.gender === "female" ? "female" : "male") as Profile["gender"],
     country: (r.country === "CN" ? "CN" : "US") as Profile["country"],
     city: r.city ?? "",
@@ -159,7 +161,7 @@ export async function fetchProfiles(): Promise<Profile[]> {
   const { data: rows, error: e2 } = await must()
     .from("profiles")
     .select(
-      "id,handle,name,age,gender,country,city,native_lang,learning_lang,level,intents,interests,bio,avatar_url,photos,occupation,education,zodiac,chinese_variant,photo_privacy,tier,verified,online,plan,plan_expires_at,is_founder,founder_slot,founder_last_active_at,boost_until,created_at,updated_at"
+      "id,handle,name,age,birth_year,gender,country,city,native_lang,learning_lang,level,intents,interests,bio,avatar_url,photos,occupation,education,zodiac,chinese_variant,photo_privacy,tier,verified,online,plan,plan_expires_at,is_founder,founder_slot,founder_last_active_at,boost_until,created_at,updated_at"
     )
     .order("online", { ascending: false });
   if (e2) throw e2;
@@ -167,7 +169,7 @@ export async function fetchProfiles(): Promise<Profile[]> {
 }
 
 const PROFILE_SELECT_SAFE =
-  "id,handle,name,age,gender,country,city,native_lang,learning_lang,level,intents,interests,bio,avatar_url,photos,occupation,education,zodiac,chinese_variant,photo_privacy,tier,verified,online,plan,plan_expires_at,is_founder,founder_slot,founder_last_active_at,boost_until,created_at,updated_at";
+  "id,handle,name,age,birth_year,gender,country,city,native_lang,learning_lang,level,intents,interests,bio,avatar_url,photos,occupation,education,zodiac,chinese_variant,photo_privacy,tier,verified,online,plan,plan_expires_at,is_founder,founder_slot,founder_last_active_at,boost_until,created_at,updated_at";
 
 export async function fetchDbProfile(id: string): Promise<DbProfile | null> {
   const sb = must();
@@ -222,7 +224,10 @@ export function dbToMyPartial(r: DbProfile) {
   return {
     name: r.name || "",
     gender: (r.gender === "female" ? "female" : "male") as "male" | "female",
-    age: r.age,
+    age: (() => {
+      const n = resolveProfileAge(r.birth_year, r.age);
+      return n > 0 ? n : null;
+    })(),
     country: (r.country === "CN"
       ? "CN"
       : r.country === "US"
@@ -246,7 +251,9 @@ export function dbToMyPartial(r: DbProfile) {
       | "romance"
     )[],
     photoPrivacy: r.photo_privacy,
-    basicsLocked: Boolean(r.age && r.gender && r.country),
+    basicsLocked: Boolean(
+      (r.birth_year || r.age) && r.gender && r.country
+    ),
   };
 }
 
@@ -276,7 +283,12 @@ export function myProfileToDbPatch(
   const patch: Partial<DbProfile> & { id: string } = { id };
   if (p.name !== undefined) patch.name = p.name;
   if (p.gender !== undefined) patch.gender = p.gender as DbProfile["gender"];
-  if (p.age !== undefined) patch.age = p.age;
+  // Only write birth_year on first age set via this helper; the /api/profile/me
+  // route owns locking + annual age refresh from birth_year.
+  if (p.age !== undefined && p.age !== null) {
+    patch.age = p.age;
+    patch.birth_year = birthYearFromAge(p.age);
+  }
   if (p.country !== undefined) patch.country = p.country;
   if (p.city !== undefined) patch.city = p.city;
   if (p.occupation !== undefined) patch.occupation = p.occupation;

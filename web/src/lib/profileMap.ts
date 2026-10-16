@@ -4,12 +4,14 @@ import type { Profile } from "./types";
 import { parseChineseVariants } from "./profile";
 import { isFounderFrozen } from "./entitlements";
 import { proxiedMediaList, proxiedMediaUrl } from "./mediaProxy";
+import { resolveProfileAge } from "./age";
 
 export type PublicProfileRow = {
   id: string;
   handle?: string | null;
   name?: string | null;
   age?: number | null;
+  birth_year?: number | null;
   gender?: string | null;
   country?: string | null;
   city?: string | null;
@@ -52,7 +54,7 @@ export function mapPublicProfile(r: PublicProfileRow): Profile {
   return {
     id: r.id,
     name: r.name || "用户",
-    age: r.age ?? 0,
+    age: resolveProfileAge(r.birth_year, r.age),
     gender: (r.gender === "female" ? "female" : "male") as Profile["gender"],
     country: (r.country === "CN" ? "CN" : "US") as Profile["country"],
     city: r.city ?? "",
